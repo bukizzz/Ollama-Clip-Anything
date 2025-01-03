@@ -7,6 +7,8 @@ Just type your prompt.
 
 AI will clip the right moments for you from any video.
 
+If you wish to add ClipAnything into your application, here is an api to create clips from long-form video :- https://docs.vadoo.tv/docs/guide/create-ai-clips
+
 ### Youtube Tutorial -> https://youtu.be/R_3kexWz4TU
 
 ### Medium Article -> https://medium.com/@anilmatcha/clipanything-free-ai-video-editor-in-python-tutorial-526f7a972829
