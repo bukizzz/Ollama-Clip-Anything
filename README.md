@@ -1,4 +1,4 @@
-# ClipAnything
+# Clip Anything
 Clip any moment from any video with prompts
 
 Multimodal AI clipping that lets you clip any moment from any video using visual, audio, and sentiment cues
@@ -7,7 +7,7 @@ Just type your prompt.
 
 AI will clip the right moments for you from any video.
 
-If you wish to add ClipAnything into your application, here is an api to create clips from long-form video :- https://docs.vadoo.tv/docs/guide/create-ai-clips
+If you wish to add Clip Anything into your application, here is an api to create clips from long-form video :- https://docs.vadoo.tv/docs/guide/create-ai-clips
 
 ### Youtube Tutorial -> https://youtu.be/R_3kexWz4TU
 
