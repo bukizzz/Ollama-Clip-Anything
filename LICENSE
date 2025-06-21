@@ -1,21 +1,24 @@
-MIT License
+Copyright (c) 2025 Vuk Vujović
 
-Copyright (c) 2024 SamurAIGPT
+By using this software ("Software"), you agree to the following terms:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Non‑Commercial Use Only  
+You may use, copy, modify, and create derivative works for personal, educational, research, hobby, or non-commercial purposes only. Any use intended for commercial advantage or monetary compensation is prohibited without explicit permission.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+2. Free Distribution  
+You may distribute the Software or your modifications free of charge, but only for non-commercial purposes. Commercial distribution or sale is forbidden unless you obtain prior written consent.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+3. Attribution & Notices  
+You must preserve all copyright, license, and trademark notices. If you make modifications, you must note them clearly in a README or header (e.g., “Modified by Vuk Vujović on YYYY‑MM‑DD”).
+
+4. Payment‑Related Functionality  
+If the software includes prompts, links, or features for payments to the Licensor, these must remain intact in any redistributed copies.
+
+5. Fair Use  
+This license does not limit any fair use rights that you may have under applicable laws.
+
+6. Termination & Reinstatement  
+Violation of any terms results in automatic termination of your license. If you receive notice and fix the violation within 30 days, your license will be reinstated. Any further violation after reinstatement causes permanent termination.
+
+7. Disclaimer  
+The Software is provided “as-is”, without any warranty. The Licensor is not liable for any damages arising from its use.
