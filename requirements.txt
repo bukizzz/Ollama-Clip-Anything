@@ -26,3 +26,7 @@ torch==2.4.1
 tqdm==4.66.5
 typing_extensions==4.12.2
 urllib3==2.2.3
+ollama-python>=0.1.6
+json5==0.9.24
+ffmpeg-python==0.2.0
+python-dotenv==1.0.1
