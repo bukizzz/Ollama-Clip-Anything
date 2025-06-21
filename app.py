@@ -684,7 +684,7 @@ def main():
             print(f"  Clip {i}: {clip['start']:.1f}s - {clip['end']:.1f}s ({duration:.1f}s)")
             print(f"    Description: {clip['text'][:100]}...")
 
-        # Step 4: Create all clips
+        # Step 4: Create clips
         print(f"\n4. Creating {len(clips)} individual video clips...")
         created_clips = create_all_clips(input_video, clips, transcription)
         
@@ -710,3 +710,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
