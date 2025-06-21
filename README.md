@@ -48,7 +48,7 @@ python -m venv venv
 With the virtual environment activated, run:
 
 ```bash
-pip install moviepy whisper torch ollama-python json5
+pip install -r requirements.txt
 ```
 
 ---
@@ -110,7 +110,7 @@ user_query = "5-10min long part. output start, end, summary. no other output"
 4. Run the script:
 
 ```bash
-python script_name.py
+python app.py
 ```
 
 5. The output video will be saved as `edited_output.mp4` (modifiable in `main()`).
