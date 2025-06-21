@@ -17,49 +17,55 @@ This script automates the extraction of relevant video segments based on transcr
 
 ### Step 1: Prepare Project Directory
 
-Place the script file(s) into your working folder.
+Place the script file(s) into your working folder or clone this repo.
 
+'''bash
+git clone https://github.com/bukizzz/Ollama-Clip-Anything
+'''
 ---
 
 ### Step 2: Create and Activate Python Virtual Environment (Recommended)
 
 - Linux/macOS:
 
+'''bash
 python3 -m venv venv  
 source venv/bin/activate
+'''
 
 - Windows (PowerShell):
 
+'''bash
 python -m venv venv  
 .\venv\Scripts\Activate.ps1
-
+'''
 ---
 
 ### Step 3: Install Dependencies
 
 With the virtual environment activated, run:
-
+'''bash
 pip install moviepy whisper torch ollama-python json5
-
+'''
 ---
 
 ### Step 4: Verify FFmpeg Installation
 
 Ensure FFmpeg is installed and available in your system PATH:
-
+'''bash
 ffmpeg -version
-
+'''
 If not installed:
 
 - Ubuntu/Debian:
-
+'''bash
 sudo apt-get update  
 sudo apt-get install ffmpeg
-
+'''
 - macOS (Homebrew):
-
+'''bash
 brew install ffmpeg
-
+'''
 - Windows:
 
 Download from https://ffmpeg.org/download.html and add its `bin` folder to your system PATH.
@@ -71,23 +77,24 @@ Download from https://ffmpeg.org/download.html and add its `bin` folder to your 
 1. Activate your virtual environment:
 
 - Linux/macOS:
-
+'''bash
 source venv/bin/activate
-
+'''
 - Windows (PowerShell):
-
+'''bash
 .\venv\Scripts\Activate.ps1
-
+'''
 2. Place the input video file as `input_video.mp4` in the working directory or adjust `input_video` path in the script.
 
 3. Customize the `user_query` variable in the `main()` function to specify segment extraction criteria.  
-Example:  
+Example:
+'''bash  
 user_query = "5-10min long part. output start, end, summary. no other output"
-
-4. Run the script:
-
+'''
+5. Run the script:
+'''bash
 python script_name.py
-
+'''
 5. The output video will be saved as `edited_output.mp4` (modifiable in `main()`).
 
 ---
