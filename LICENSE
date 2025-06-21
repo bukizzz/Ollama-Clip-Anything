@@ -9,7 +9,7 @@ You may use, copy, modify, and create derivative works for personal, educational
 You may distribute the Software or your modifications free of charge, but only for non-commercial purposes. Commercial distribution or sale is forbidden unless you obtain prior written consent.
 
 3. Attribution & Notices  
-You must preserve all copyright, license, and trademark notices. If you make modifications, you must note them clearly in a README or header (e.g., “Modified by Vuk Vujović on YYYY‑MM‑DD”).
+You must preserve all copyright, license, and trademark notices. If you make modifications, you must note them clearly in a README or header (e.g., “Modified by {name} on YYYY‑MM‑DD”).
 
 4. Payment‑Related Functionality  
 If the software includes prompts, links, or features for payments to the Licensor, these must remain intact in any redistributed copies.
@@ -22,3 +22,8 @@ Violation of any terms results in automatic termination of your license. If you 
 
 7. Disclaimer  
 The Software is provided “as-is”, without any warranty. The Licensor is not liable for any damages arising from its use.
+
+8. Attribution & Origin
+This project was originally forked from SamurAIGPT/Clip-Anything licensed under the MIT License.
+Since then, the codebase has been substantially rewritten and modified by the Licensor.
+The original MIT license still applies to the initial code and portions retained, and this license covers all modifications and new code authored by the Licensor.
