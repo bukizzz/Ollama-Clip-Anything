@@ -19,53 +19,63 @@ This script automates the extraction of relevant video segments based on transcr
 
 Place the script file(s) into your working folder or clone this repo.
 
-'''bash
+```bash
 git clone https://github.com/bukizzz/Ollama-Clip-Anything
-'''
+```
+
 ---
 
 ### Step 2: Create and Activate Python Virtual Environment (Recommended)
 
 - Linux/macOS:
 
-'''bash
+```bash
 python3 -m venv venv  
 source venv/bin/activate
-'''
+```
 
 - Windows (PowerShell):
 
-'''bash
+```bash
 python -m venv venv  
-.\venv\Scripts\Activate.ps1
-'''
+.env\Scripts\Activate.ps1
+```
+
 ---
 
 ### Step 3: Install Dependencies
 
 With the virtual environment activated, run:
-'''bash
+
+```bash
 pip install moviepy whisper torch ollama-python json5
-'''
+```
+
 ---
 
 ### Step 4: Verify FFmpeg Installation
 
 Ensure FFmpeg is installed and available in your system PATH:
-'''bash
+
+```bash
 ffmpeg -version
-'''
+```
+
 If not installed:
 
 - Ubuntu/Debian:
-'''bash
+
+```bash
 sudo apt-get update  
 sudo apt-get install ffmpeg
-'''
+```
+
 - macOS (Homebrew):
-'''bash
+
+```bash
 brew install ffmpeg
-'''
+```
+
 - Windows:
 
 Download from https://ffmpeg.org/download.html and add its `bin` folder to your system PATH.
@@ -77,24 +87,32 @@ Download from https://ffmpeg.org/download.html and add its `bin` folder to your 
 1. Activate your virtual environment:
 
 - Linux/macOS:
-'''bash
+
+```bash
 source venv/bin/activate
-'''
+```
+
 - Windows (PowerShell):
-'''bash
-.\venv\Scripts\Activate.ps1
-'''
+
+```bash
+.env\Scripts\Activate.ps1
+```
+
 2. Place the input video file as `input_video.mp4` in the working directory or adjust `input_video` path in the script.
 
 3. Customize the `user_query` variable in the `main()` function to specify segment extraction criteria.  
 Example:
-'''bash  
+
+```python
 user_query = "5-10min long part. output start, end, summary. no other output"
-'''
-5. Run the script:
-'''bash
+```
+
+4. Run the script:
+
+```bash
 python script_name.py
-'''
+```
+
 5. The output video will be saved as `edited_output.mp4` (modifiable in `main()`).
 
 ---
@@ -110,11 +128,11 @@ python script_name.py
 
 ## Customization Options
 
-- Change Whisper model in transcribe_video() (e.g., "base", "small", "medium", "large").  
+- Change Whisper model in `transcribe_video()` (e.g., "base", "small", "medium", "large").  
 - Change LLM model string in multi-stage functions (default "qwen2.5-coder:7b").  
-- Modify user_query for different segment extraction goals.  
-- Adjust retry parameters max_retries and retry_delay in get_relevant_segments_multistage_with_retry().  
-- Rename input/output video paths in main().
+- Modify `user_query` for different segment extraction goals.  
+- Adjust retry parameters `max_retries` and `retry_delay` in `get_relevant_segments_multistage_with_retry()`.  
+- Rename input/output video paths in `main()`.
 
 ---
 
@@ -123,7 +141,7 @@ python script_name.py
 - FFmpeg issues: Confirm installation and PATH inclusion.  
 - Whisper load errors: Verify correct PyTorch installation and CUDA drivers if using GPU.  
 - Ollama errors: Ensure Ollama server is running and models are pulled.  
-- JSON parse failures: Ensure json5 package is installed; check raw LLM output logs.  
+- JSON parse failures: Ensure `json5` package is installed; check raw LLM output logs.  
 - Memory constraints: Monitor GPU/CPU usage; reduce video length or model size if needed.
 
 ---
