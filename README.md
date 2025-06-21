@@ -20,7 +20,7 @@ This script automates the extraction of relevant video segments based on transcr
 Place the script file(s) into your working folder or clone this repo.
 
 ```bash
-git clone https://github.com/bukizzz/Ollama-Clip-Anything
+git clone https://github.com/bukizzz/Ollama-Clip-Anything.git
 ```
 
 ---
