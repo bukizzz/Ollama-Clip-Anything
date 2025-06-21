@@ -38,7 +38,7 @@ source venv/bin/activate
 
 ```bash
 python -m venv venv  
-.env\Scripts\Activate.ps1
+.\venv\Scripts\Activate.ps1
 ```
 
 ---
