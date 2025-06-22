@@ -1,170 +1,231 @@
-# Video Segment Extraction with LLM-Assisted Transcription
+#Overview
 
----
+This program automatically extracts engaging 60-second clips from longer videos (local files or YouTube URLs) with intelligent content selection, automatic face tracking, and professional subtitle generation. It's designed for content creators who want to repurpose long-form videos into short, shareable clips.
+Installation Guide
+Prerequisites
 
-## Overview
+    Python 3.11 (recommended) or later
 
-This script automates the extraction of relevant video segments based on transcription analysis enhanced by a Large Language Model (LLM). It performs:
+    FFmpeg (must be installed and in system PATH)
 
-- Audio extraction from video  
-- Speech transcription with OpenAI Whisper  
-- Multi-stage LLM processing to identify key segments  
-- Video editing to extract and concatenate clips with fade effects  
+    NVIDIA GPU (optional but recommended for faster processing)
 
----
+#Step-by-Step Installation
 
-## Installation Instructions
+##1. Install Python 3.11
 
-### Step 1: Prepare Project Directory
+###Windows:
 
-Place the script file(s) into your working folder or clone this repo.
+    Download Python 3.11 installer from python.org
 
-```bash
-git clone https://github.com/bukizzz/Ollama-Clip-Anything.git
-```
+    Run installer
 
----
+    Check "Add Python to PATH" during installation
 
-### Step 2: Create and Activate Python Virtual Environment (Recommended)
+    Verify installation: ```bash python --version should show 3.11.x ```
 
-- Linux/macOS:
+###macOS:
 
-```bash
-python3 -m venv venv  
-source venv/bin/activate
-```
+    ```bash brew install python@3.11 ```
 
-- Windows (PowerShell):
+###Linux (Ubuntu/Debian):
 
-```bash
-python -m venv venv  
-.\venv\Scripts\Activate.ps1
-```
+    ```bash 
+    sudo apt update
+    sudo apt install python3.11 python3.11-venv
+    ```
 
----
+##2. Create and Activate Virtual Environment
 
-### Step 3: Install Dependencies
+    ```bash
+    python3.11 -m venv clipgen_env
+    source clipgen_env/bin/activate  # Linux/macOS
+    clipgen_env\Scripts\activate     # Windows
+    ```
+##3. Install FFmpeg
 
-With the virtual environment activated, run:
+###Windows:
 
-```bash
-pip install -r requirements.txt
-```
+    Download from ffmpeg.org
 
----
+    Extract and add bin folder to system PATH
 
-### Step 4: Verify FFmpeg Installation
-
-Ensure FFmpeg is installed and available in your system PATH:
-
-```bash
-ffmpeg -version
-```
-
-If not installed:
-
-- Ubuntu/Debian:
-
-```bash
-sudo apt-get update  
-sudo apt-get install ffmpeg
-```
-
-- macOS (Homebrew):
+###macOS:
 
 ```bash
 brew install ffmpeg
 ```
 
-- Windows:
-
-Download from https://ffmpeg.org/download.html and add its `bin` folder to your system PATH.
-
----
-
-## Usage Manual
-
-1. Activate your virtual environment:
-
-- Linux/macOS:
+###Linux:
 
 ```bash
-source venv/bin/activate
+sudo apt install ffmpeg
 ```
 
-- Windows (PowerShell):
+##4. Install Requirements
 
 ```bash
-.env\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-2. Place the input video file as `input_video.mp4` in the working directory or adjust `input_video` path in the script.
+##5. Install Ollama (for AI clip selection)
 
-3. Customize the `user_query` variable in the `main()` function to specify segment extraction criteria.  
-Example:
-
-```python
-user_query = "5-10min long part. output start, end, summary. no other output"
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen2.5-coder:7b
 ```
 
-4. Run the script:
+#Usage Instructions
+
+##Basic Usage
+
+    Run the program:
 
 ```bash
 python app.py
 ```
+    ###Choose input method:
 
-5. The output video will be saved as `edited_output.mp4` (modifiable in `main()`).
+        Local MP4 file (enter path or drag file to terminal)
 
----
+        YouTube URL (enter URL and select quality)
 
-## Core Functional Components
+    ###The program will:
 
-- Audio extraction: Uses FFmpeg to convert video audio to a mono 16kHz MP3 for transcription.  
-- Transcription: Runs Whisper speech-to-text model producing timestamped segments.  
-- LLM Processing: Runs multi-pass Ollama LLM prompts to extract, clean, and validate JSON segments matching user query, with retry logic.  
-- Video Editing: Extracts clips corresponding to segments, applies fade-in/out effects, concatenates, and encodes final output.
+        Transcribe the video
 
----
+        Analyze content for engaging segments
 
-## Customization Options
+        Create 60-second clips with face tracking
 
-- Change Whisper model in `transcribe_video()` (e.g., "base", "small", "medium", "large").  
-- Change LLM model string in multi-stage functions (default "qwen2.5-coder:7b").  
-- Modify `user_query` for different segment extraction goals.  
-- Adjust retry parameters `max_retries` and `retry_delay` in `get_relevant_segments_multistage_with_retry()`.  
-- Rename input/output video paths in `main()`.
+        Add synchronized subtitles
 
----
+        Save clips to organized folders 
 
-## Troubleshooting
+##Advanced Options
 
-- FFmpeg issues: Confirm installation and PATH inclusion.  
-- Whisper load errors: Verify correct PyTorch installation and CUDA drivers if using GPU.  
-- Ollama errors: Ensure Ollama server is running and models are pulled.  
-- JSON parse failures: Ensure `json5` package is installed; check raw LLM output logs.  
-- Memory constraints: Monitor GPU/CPU usage; reduce video length or model size if needed.
+    To customize processing, you can modify these parameters in the code:
 
----
+    Clip duration: Change the 45 <= duration <= 90 range in sanitize_segments()
 
-## Logging
+    Video quality: Adjust NVENC/CPU encoding settings in the encoding functions
 
-The script provides verbose console logs at each step, including:
+    Subtitle style: Modify the style string in create_individual_clip()
 
-- FFmpeg command execution  
-- Transcription progress and memory cleanup  
-- LLM prompt passes and raw output  
-- JSON extraction and sanitation results  
-- Video clip extraction timing and errors  
-- Retry attempts and final status
+##Output Structure
 
-Use logs for debugging and performance insights.
+    Clips are saved in:
 
----
+```bash
+videos/
+└── source_video_name_1234/
+    ├── clip_batch1_1.mp4
+    ├── clip_batch1_2.mp4
+    └── ...
+```
 
-## Extension Ideas
+#Features
 
-- Add CLI arguments or config file support for flexible input/output and query parameters.  
-- Batch process multiple videos in parallel.  
-- Support other video/audio formats or enhanced audio extraction options.  
-- Overlay subtitles or other metadata onto output clips.  
-- Integrate progress bars or GUI front-end.
+##1. Flexible Video Input
+
+    Local files: Directly process MP4 files
+
+    YouTube downloads: Automatically download and process YouTube videos with quality selection
+
+    Adaptive streams: Handles both progressive and adaptive YouTube streams
+
+##2. AI-Powered Content Selection
+
+    Three-pass LLM analysis:
+
+        Initial content identification
+
+        JSON structure conversion
+
+        Final validation and cleanup
+
+    Context-aware selection: Chooses complete thoughts/stories rather than arbitrary segments
+
+    Retry logic: Automatically retries failed analyses
+
+##3. Professional Video Processing
+
+    Smart cropping: Automatic 9:16 aspect ratio conversion
+
+    Face tracking: Dynamic crop positioning based on face detection
+
+    Multiple encoding methods (with automatic fallback):
+
+        NVENC (GPU accelerated)
+
+        CPU encoding
+
+        Safe mode (ultra-compatible)
+
+    Audio normalization: Consistent volume levels across clips
+
+##4. Subtitle Generation
+
+    Precise synchronization: Compensates for processing delays
+
+    Automatic wrapping: Formats text for optimal readability
+
+    Professional styling: Clean, readable subtitles with shadow/outline
+
+##5. Robust Error Handling
+
+    Comprehensive validation: Checks at every processing stage
+
+    Automatic cleanup: Removes temporary files
+
+    Detailed error reporting: Helps troubleshoot issues
+
+##6. Performance Optimization
+
+    GPU acceleration: Uses CUDA when available
+
+    Memory management: Properly unloads models
+
+    Disk space monitoring: Warns about low space
+
+#Troubleshooting
+
+##Common Issues
+
+    ###FFmpeg not found:
+
+        Verify FFmpeg is installed and in PATH
+
+        Test with ```bash ffmpeg -version ```
+
+    ###CUDA errors:
+
+        Ensure you have compatible NVIDIA drivers
+
+        Try ```bash pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 ```
+
+    ###YouTube download failures:
+
+        Try a different video quality
+
+        Check your internet connection
+
+    ###Face tracking not working:
+
+        Ensure OpenCV is properly installed
+
+        Try well-lit videos with clear faces
+
+#Getting Help
+
+##For additional support, please open an issue on GitHub with:
+
+    The exact error message
+
+    Your system specifications
+
+    The video you were processing (if possible)
+
+#License
+
+This project is licensed under the Source First License - see the LICENSE file for details.
