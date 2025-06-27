@@ -1,0 +1,31 @@
+# Core dependencies
+torch>=2.3.1
+whisper>=1.0
+faster-whisper==1.0.0
+moviepy>=1.0.3
+pytubefix>=0.0.6
+pytube3==9.6.4
+ollama>=0.2.0
+opencv-python==4.9.0.80
+numpy==1.26.4
+spacy==3.7.4
+mediapipe
+scikit-learn
+librosa
+webcolors
+
+# Audio/Video processing
+ffmpeg-python>=0.2.0
+pydub>=0.25.1
+
+# Utilities
+tqdm>=4.0.0
+requests>=2.26.0
+python-dotenv>=0.19.0
+
+# Optional (for GPU acceleration if available)
+torchaudio>=2.0.0
+torchvision==0.18.1
+
+# Development tools (recommended)
+ipython>=8.0.0
