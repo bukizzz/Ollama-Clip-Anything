@@ -39,8 +39,16 @@ def download_youtube_video(url: str) -> str:
         size_str = f"{size_mb:.2f} MB" if isinstance(size_mb, float) else size_mb
         print(f"{i}: {stream.resolution} | {stream.fps}fps | {stream_type} | {audio_info} | {size_str}")
 
-    choice = int(input("Enter the number of the video stream to download: "))
-    selected_stream = video_streams[choice]
+    while True:
+        try:
+            choice = int(input("Enter the number of the video stream to download: "))
+            if 0 <= choice < len(video_streams):
+                selected_stream = video_streams[choice]
+                break
+            else:
+                print("Invalid choice. Please enter a number within the displayed range.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)

@@ -78,7 +78,7 @@ ollama pull qwen2.5-coder:7b
 
 1. Run the program:
    ```bash
-   python app.py
+   python main.py
    ```
 
 2. Choose input method:
