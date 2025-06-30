@@ -29,7 +29,7 @@ This program automatically extracts engaging 60-second clips from longer videos 
 brew install python@3.11
 ```
 
-**Linux (Ubuntu/Debian):**
+**Linux (Ubuntu/Debian):
 ```bash
 sudo apt update
 sudo apt install python3.11 python3.11-venv
@@ -72,6 +72,12 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5-coder:7b
 ```
 
+#### 6. Download spaCy Model
+
+```bash
+python -m spacy download en_core_web_sm
+```
+
 ## Usage Instructions
 
 ### Basic Usage
@@ -80,10 +86,21 @@ ollama pull qwen2.5-coder:7b
    ```bash
    python main.py
    ```
+   This will prompt you to choose an input method.
 
-2. Choose input method:
-   - Local MP4 file (enter path or drag file to terminal)
-   - YouTube URL (enter URL and select quality)
+2. Alternatively, use command-line arguments for direct input:
+   - For a local MP4 file:
+     ```bash
+     python main.py --video_path /path/to/your/video.mp4
+     ```
+   - For a YouTube URL (will prompt for quality selection):
+     ```bash
+     python main.py --youtube_url https://www.youtube.com/watch?v=dQw4w9WgXcQ
+     ```
+   - For a YouTube URL with a specific quality (e.g., option 6 from the list):
+     ```bash
+     python main.py --youtube_url https://www.youtube.com/watch?v=dQw4w9WgXcQ --youtube_quality 6
+     ```
 
 3. The program will:
    - Transcribe the video
@@ -95,91 +112,107 @@ ollama pull qwen2.5-coder:7b
 ### Advanced Options
 
 To customize processing, you can modify these parameters in the code:
-- **Clip duration:** Change the `45 <= duration <= 90` range in `sanitize_segments()`
-- **Video quality:** Adjust NVENC/CPU encoding settings in the encoding functions
-- **Subtitle style:** Modify the style string in `create_individual_clip()`
+- **Clip duration:** Change the `CLIP_DURATION_RANGE` in `core/config.py`
+- **Video encoding:** Adjust `VIDEO_ENCODER` and `FFMPEG_ENCODER_PARAMS` in `core/config.py` for GPU-accelerated (e.g., `h264_nvenc`, `hevc_nvenc`, `av1_nvenc`) or CPU encoding.
+- **Subtitle style:** Modify `SUBTITLE_FONT_FAMILIES` in `core/config.py` or the styling logic in `audio/subtitle_generation.py`.
+- **Frame smoothing:** Adjust `SMOOTHING_FACTOR` in `core/config.py` for smoother dynamic cropping.
 
 ### Output Structure
 
 Clips are saved in:
 ```
 videos/
-└── source_video_name_1234/
-    ├── clip_batch1_1.mp4
-    ├── clip_batch1_2.mp4
+└── source_video_name_enhanced/
+    ├── clip_enhanced_1.mp4
+    ├── clip_enhanced_2.mp4
     └── ...
 ```
+A `processing_report_YYYYMMDD_HHMMSS.json` file will also be saved in the output folder.
 
 ## Features
 
+This project has been significantly refactored into a modular structure for improved maintainability and scalability. Key features include:
+
 ### 1. Flexible Video Input
-- **Local files:** Directly process MP4 files
-- **YouTube downloads:** Automatically download and process YouTube videos with quality selection
-- **Adaptive streams:** Handles both progressive and adaptive YouTube streams
+- **Local files:** Directly process MP4 files.
+- **YouTube downloads:** Automatically download and process YouTube videos with quality selection.
+- **Adaptive streams:** Handles both progressive and adaptive YouTube streams.
+- **AV1 Conversion:** Automatically converts AV1 video streams to H.265 (HEVC) for broader compatibility.
 
 ### 2. AI-Powered Content Selection
 - **Three-pass LLM analysis:**
   - Initial content identification
-  - JSON structure conversion
+  - JSON structure conversion (with robust extraction)
   - Final validation and cleanup
-- **Context-aware selection:** Chooses complete thoughts/stories rather than arbitrary segments
-- **Retry logic:** Automatically retries failed analyses
+- **Context-aware selection:** Chooses complete thoughts/stories rather than arbitrary segments.
+- **Retry logic:** Automatically retries failed analyses.
 
 ### 3. Professional Video Processing
-- **Smart cropping:** Automatic 9:16 aspect ratio conversion
-- **Face tracking:** Dynamic crop positioning based on face detection
+- **Smart cropping & Dynamic Framing:** Automatic 9:16 aspect ratio conversion with dynamic crop positioning based on face/object detection and smooth transitions.
+- **Face tracking:** Dynamic crop positioning based on face detection.
+- **Object tracking:** Enhanced object detection and tracking with visual annotations.
 - **Multiple encoding methods** (with automatic fallback):
   - NVENC (GPU accelerated)
   - CPU encoding
-  - Safe mode (ultra-compatible)
-- **Audio normalization:** Consistent volume levels across clips
+  - Configurable video encoders (e.g., `h264_nvenc`, `libx264`, `hevc_nvenc`, `av1_nvenc`).
+- **Audio normalization:** Consistent volume levels across clips.
 
 ### 4. Subtitle Generation
-- **Precise synchronization:** Compensates for processing delays
-- **Automatic wrapping:** Formats text for optimal readability
-- **Professional styling:** Clean, readable subtitles with shadow/outline
+- **Precise synchronization:** Compensates for processing delays.
+- **Automatic wrapping:** Formats text for optimal readability.
+- **Professional styling:** Clean, readable, and animated subtitles with shadow/outline.
 
-### 5. Robust Error Handling
-- **Comprehensive validation:** Checks at every processing stage
-- **Automatic cleanup:** Removes temporary files
-- **Detailed error reporting:** Helps troubleshoot issues
+### 5. Robust Error Handling & System Checks
+- **Comprehensive validation:** Checks at every processing stage.
+- **Automatic cleanup:** Removes temporary files.
+- **Detailed error reporting:** Helps troubleshoot issues with specific `pip install` commands and system information.
+- **System Health Checks:** Verifies FFmpeg, Ollama service and model availability, PyTorch, OpenCV, MediaPipe, and spaCy installations.
 
 ### 6. Performance Optimization
-- **GPU acceleration:** Uses CUDA when available
-- **Memory management:** Properly unloads models
-- **Disk space monitoring:** Warns about low space
+- **GPU acceleration:** Uses CUDA when available.
+- **Memory management:** Properly unloads models.
+- **Disk space monitoring:** Warns about low space.
+- **Optimized Tracker Initialization:** Face and object trackers are initialized once for batch processing.
 
 ## Troubleshooting
 
 ### Common Issues
 
 **FFmpeg not found:**
-- Verify FFmpeg is installed and in PATH
+- Verify FFmpeg is installed and in PATH.
 - Test with:
   ```bash
   ffmpeg -version
   ```
 
+**Ollama service not running or model not found:**
+- Ensure Ollama is installed and running (`ollama run <model_name>`).
+- Pull the required LLM model: `ollama pull qwen2.5-coder:7b`.
+
+**spaCy 'en_core_web_sm' model not found:**
+- Download the model: `python -m spacy download en_core_web_sm`.
+
 **CUDA errors:**
-- Ensure you have compatible NVIDIA drivers
-- Try:
+- Ensure you have compatible NVIDIA drivers.
+- Try reinstalling PyTorch with CUDA support:
   ```bash
   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
   ```
 
 **YouTube download failures:**
-- Try a different video quality
-- Check your internet connection
+- Try a different video quality.
+- Check your internet connection.
+- Ensure `pytubefix` is up to date.
 
 **Face tracking not working:**
-- Ensure OpenCV is properly installed
-- Try well-lit videos with clear faces
+- Ensure OpenCV and MediaPipe are properly installed.
+- Try well-lit videos with clear faces.
 
 ## Getting Help
 
 For additional support, please open an issue on GitHub with:
 - The exact error message
-- Your system specifications
+- Your system specifications (run `python main.py` and check the system info output)
 - The video you were processing (if possible)
 
 ## License
