@@ -1,0 +1,19 @@
+# Ignore temporary files generated during testing
+test_nvenc_output.mp4
+
+# Ignore temporary directory created by temp_manager
+.temp/
+
+# Python cache directories
+__pycache__/
+
+# Downloaded video files
+videos/
+dummy_video.mp4
+video.mp4
+
+# FFmpeg executable (if downloaded)
+ffmpeg
+
+# Test related files
+tests/

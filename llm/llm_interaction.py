@@ -7,7 +7,7 @@ import json
 import re
 import time
 import ollama
-from config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE
+from core.config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE
 
 
 def llm_pass(model: str, messages: list[dict]) -> str:
@@ -24,21 +24,30 @@ def llm_pass(model: str, messages: list[dict]) -> str:
 
 
 def extract_json_from_text(text: str) -> list[dict]:
-    """Extract JSON array from LLM response text."""
+    """Extract JSON array from LLM response text, with improved robustness."""
+    # Attempt direct parsing first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # If direct parsing fails, try to extract JSON from common patterns
     patterns = [
-        r'\[[\s\S]*?\]',  # bare JSON array
-        r'```json\s*(\[[\s\S]*?\])\s*```'  # fenced code block
+        r'```json\s*(\[[\s\S]*?\])\s*```',  # fenced code block
+        r'\[[\s\S]*?\]'  # bare JSON array
     ]
     for pattern in patterns:
         matches = re.findall(pattern, text, re.DOTALL)
         for match in matches:
             try:
                 json_str = match if isinstance(match, str) else match[0]
-                json_str = re.sub(r',\s*([}\]])', r'\1', json_str)  # trailing comma fix
+                # Attempt to fix common JSON issues like trailing commas
+                json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
                 return json.loads(json_str)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"Warning: Could not decode extracted JSON string. Error: {e}")
                 continue
-    raise ValueError("No valid JSON array found in model output")
+    raise ValueError("No valid JSON array found in model output after multiple attempts.")
 
 
 def sanitize_segments(segments: list[dict], max_duration: float = None) -> list[dict]:

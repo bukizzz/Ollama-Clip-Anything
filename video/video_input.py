@@ -5,27 +5,50 @@ Handles user input for selecting or downloading the source video.
 import os
 import subprocess
 from pytubefix import YouTube
-from temp_manager import get_temp_path
-from config import OUTPUT_DIR
+from core.temp_manager import get_temp_path
+from core.config import OUTPUT_DIR
+import argparse
+
+def get_video_input(video_path: str = None, youtube_url: str = None, youtube_quality: int = None) -> str:
+    """Handles video input based on provided arguments."""
+    if video_path:
+        if not os.path.isfile(video_path):
+            raise FileNotFoundError(f"Local video file not found: {video_path}")
+        if not video_path.lower().endswith(".mp4"):
+            raise ValueError("Local video file must be an .mp4")
+        print(f"Using local video: {video_path}")
+        return video_path
+    elif youtube_url:
+        print(f"Downloading YouTube video from: {youtube_url}")
+        return download_youtube_video(youtube_url, youtube_quality)
+    else:
+        raise ValueError("Either --video_path or --youtube_url must be provided.")
+
+
+
+
+
 
 def choose_input_video() -> str:
-    """Choose between a local MP4 file or a YouTube video download."""
-    choice = input("Do you want to use a local .mp4 file? (y/n): ").strip().lower()
-    if choice == "y":
-        path = input("Enter path to local .mp4 file: ").strip().strip("'\"")
-        if not os.path.isfile(path):
-            raise FileNotFoundError(f"File not found: {path}")
-        if not path.lower().endswith(".mp4"):
-            raise ValueError("File must be an .mp4")
-        return path
-    else:
-        url = input("Enter YouTube video URL: ").strip()
-        return download_youtube_video(url)
+    """Prompts the user for a video source (local file path or YouTube URL) and processes it."""
+    while True:
+        user_input = input("Enter path to local MP4 file or YouTube URL: ").strip()
+        if user_input.startswith("http") or user_input.startswith("www."):
+            print(f"Detected YouTube URL: {user_input}")
+            return download_youtube_video(user_input)
+        elif os.path.isfile(user_input):
+            print(f"Detected local file: {user_input}")
+            return get_video_input(video_path=user_input)
+        else:
+            print("Invalid input. Please enter a valid local MP4 file path or a YouTube URL.")
 
-def download_youtube_video(url: str) -> str:
+
+def download_youtube_video(url: str, quality_choice: int = None) -> str:
     """Download YouTube video as MP4 with user selection of quality."""
     yt = YouTube(url)
     video_streams = yt.streams.filter(file_extension='mp4').order_by('resolution').desc()
+    # Filter out AV1 streams
+    video_streams = [s for s in video_streams if not (any('av01' in codec for codec in (s.codecs or [])) or ('av01' in (s.mime_type or '')) or ('av01' in (s.subtype or '')))]
 
     if not video_streams:
         raise RuntimeError("No compatible MP4 streams found.")
@@ -39,16 +62,23 @@ def download_youtube_video(url: str) -> str:
         size_str = f"{size_mb:.2f} MB" if isinstance(size_mb, float) else size_mb
         print(f"{i}: {stream.resolution} | {stream.fps}fps | {stream_type} | {audio_info} | {size_str}")
 
-    while True:
-        try:
-            choice = int(input("Enter the number of the video stream to download: "))
-            if 0 <= choice < len(video_streams):
-                selected_stream = video_streams[choice]
-                break
-            else:
-                print("Invalid choice. Please enter a number within the displayed range.")
-        except ValueError:
-            print("Invalid input. Please enter a number.")
+    if quality_choice is not None:
+        if 0 <= quality_choice < len(video_streams):
+            selected_stream = video_streams[quality_choice]
+            print(f"Selected stream: {quality_choice} - {selected_stream.resolution}")
+        else:
+            raise ValueError(f"Invalid quality choice: {quality_choice}. Please choose a number within the displayed range.")
+    else:
+        while True:
+            try:
+                choice = int(input("Enter the number of the video stream to download: "))
+                if 0 <= choice < len(video_streams):
+                    selected_stream = video_streams[choice]
+                    break
+                else:
+                    print("Invalid choice. Please enter a number within the displayed range.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)

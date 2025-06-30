@@ -6,8 +6,8 @@ import subprocess
 import gc
 import torch
 from faster_whisper import WhisperModel
-from temp_manager import get_temp_path
-from config import WHISPER_MODEL
+from core.temp_manager import get_temp_path
+from core.config import WHISPER_MODEL
 
 def extract_audio(video_path: str, audio_path: str) -> None:
     """Extract audio from video using FFmpeg."""
@@ -37,7 +37,7 @@ def transcribe_video(video_path: str) -> list[dict]:
                 torch.cuda.current_device()
                 device = "cuda"
                 compute_type = "float16"
-                print(f"CUDA detected and working, using GPU...")
+                print("CUDA detected and working, using GPU...")
             except Exception as cuda_error:
                 print(f"CUDA available but not working properly: {cuda_error}")
                 print("Falling back to CPU...")

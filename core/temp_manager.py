@@ -5,7 +5,7 @@ Manages the temporary directory for intermediate files.
 import os
 import shutil
 import atexit
-from config import TEMP_DIR
+from core.config import TEMP_DIR
 
 def ensure_temp_dir():
     """Create the temporary directory if it doesn't exist."""
