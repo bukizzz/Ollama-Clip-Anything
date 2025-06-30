@@ -1,0 +1,17 @@
+# core/config.yaml
+# Basic configurable inputs for Ollama-Clip-Anything
+
+# Subtitle settings
+subtitle_font_size: 28
+subtitle_font_color: "FFFFFF"
+subtitle_outline_color: "000000"
+subtitle_shadow_color: "000000"
+
+# Video processing settings
+clip_duration_min: 45
+clip_duration_max: 75
+smoothing_factor: 0.05
+
+# LLM settings
+llm_max_retries: 100
+llm_min_clips_needed: 1

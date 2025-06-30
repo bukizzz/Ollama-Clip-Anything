@@ -6,7 +6,7 @@ import platform
 import ollama
 import psutil
 from core.temp_manager import get_temp_path
-from core.config import LLM_MODEL
+from core.config import LLM_MODEL, FFMPEG_PATH
 
 def convert_av1_to_hevc(video_path: str) -> str:
     """Converts an AV1 video to H.265 (HEVC) using FFmpeg."""
@@ -60,7 +60,7 @@ def terminate_existing_processes():
 def get_video_info(video_path: str) -> dict:
     """Get video information using ffprobe."""
     probe_cmd = [
-        "ffprobe", "-v", "quiet", "-print_format", "json",
+        "/usr/local/bin/ffprobe", "-v", "quiet", "-print_format", "json",
         "-show_streams", "-show_format", video_path
     ]
     try:
@@ -74,7 +74,7 @@ def get_video_info(video_path: str) -> dict:
             video_path = converted_video_path
             # Re-probe the converted video to get its info
             probe_cmd = [
-                "ffprobe", "-v", "quiet", "-print_format", "json",
+                "/snap/ffmpeg/current/usr/bin/ffprobe", "-v", "quiet", "-print_format", "json",
                 "-show_streams", "-show_format", video_path
             ]
             result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
@@ -163,7 +163,7 @@ def system_checks():
     # Check for spaCy model
     try:
         import spacy
-        nlp = spacy.load("en_core_web_sm")
+        spacy.load("en_core_web_sm")
         print("✅ spaCy 'en_core_web_sm' model is loaded.")
     except OSError:
         print("❌ CRITICAL: spaCy 'en_core_web_sm' model not found. Please download it (python -m spacy download en_core_web_sm).")
@@ -174,7 +174,7 @@ def system_checks():
 
 def print_system_info():
     """Prints detailed system information for debugging purposes."""
-    print(f"\n🖥️  System Information:")
+    print("\n🖥️  System Information:")
     print(f"   Operating System: {platform.system()} {platform.release()} ({platform.version()})")
     print(f"   Architecture: {platform.machine()}")
     print(f"   Python Version: {platform.python_version()} ({platform.python_compiler()})")

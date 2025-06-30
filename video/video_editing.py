@@ -1,19 +1,18 @@
 import os
-import re
-import json
 import logging
-import random
-
+import time
 from typing import List, Dict, Tuple, Optional
 
-
-import time
-from moviepy.editor import VideoFileClip, CompositeVideoClip
+from moviepy.editor import VideoFileClip
 
 from core.temp_manager import get_temp_path
 from core.config import OUTPUT_DIR, CLIP_PREFIX, VIDEO_ENCODER, FFMPEG_GLOBAL_PARAMS, FFMPEG_ENCODER_PARAMS
-
 from core.ffmpeg_command_logger import FFMPEGCommandLogger
+from video.face_tracking import FaceTracker
+from video.object_tracking import ObjectTracker
+from video.frame_processor import FrameProcessor
+from analysis.analysis_and_reporting import analyze_video_content, optimize_processing_settings, create_processing_report, save_processing_report
+from audio.subtitle_generation import create_ass_file
 
 # Configure MoviePy's logger to capture FFmpeg commands
 logging.setLoggerClass(FFMPEGCommandLogger)
@@ -26,12 +25,6 @@ if not logger.handlers:
     formatter = logging.Formatter('%(levelname)s: %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-
-from video.face_tracking import FaceTracker
-from video.object_tracking import ObjectTracker
-from video.frame_processor import FrameProcessor
-from analysis.analysis_and_reporting import analyze_video_content, optimize_processing_settings, create_processing_report, save_processing_report
-from audio.subtitle_generation import create_ass_file
 
 
 
@@ -100,9 +93,6 @@ def create_enhanced_individual_clip(
         
         # Write final video
         ffmpeg_params = list(FFMPEG_GLOBAL_PARAMS)
-        ffmpeg_params.extend(['-c:v', VIDEO_ENCODER])
-        if VIDEO_ENCODER in FFMPEG_ENCODER_PARAMS:
-            ffmpeg_params.extend(FFMPEG_ENCODER_PARAMS[VIDEO_ENCODER])
         
         # Add subtitle filter
         ffmpeg_params.extend(['-vf', f"subtitles={ass_path}"])
@@ -110,6 +100,7 @@ def create_enhanced_individual_clip(
         print(f"DEBUG: FFmpeg parameters: {ffmpeg_params}")
         processed_video_clip.write_videofile(
             output_path,
+            codec=VIDEO_ENCODER, # Explicitly set the video codec
             audio_codec='aac',
             temp_audiofile=get_temp_path(f'temp_audio_enhanced_{clip_number}.m4a'),
             remove_temp=True,

@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.6] - 2025-06-30
+
+### Added
+
+-   **Configurable Inputs:**
+    -   Introduced `core/config.yaml` for basic configurable inputs, including subtitle font size, colors, clip duration range, smoothing factor, LLM max retries, and minimum clips needed.
+    -   `core/config.py` was updated to load these settings from `config.yaml`.
+    -   `pyyaml` added to `requirements.txt` for YAML parsing.
+-   **Audio Processing Enhancements:**
+    -   Added `ffmpeg-normalize` to `requirements.txt`.
+    -   Implemented `normalize_audio_loudness` in `audio/audio_processing.py` to ensure consistent audio levels.
+    -   Added a placeholder for `voice_separation` in `audio/audio_processing.py` to prepare for future voice isolation features.
+    -   `transcribe_video` in `audio/audio_processing.py` now utilizes the normalized audio for transcription.
+-   **Basic Visual Effects:**
+    -   Added `apply_color_grading` function to `video/video_effects.py` for basic color adjustments (brightness, contrast, saturation).
+-   **Enhanced LLM Prompting:**
+    -   `llm/llm_interaction.py` now supports an optional `user_prompt` parameter in `three_pass_llm_extraction` to allow users to guide clip selection with specific instructions.
+    -   `agents/llm_selection_agent.py` was updated to pass the `user_prompt` from the context to the LLM.
+    -   `main.py` now accepts a new command-line argument `--user_prompt` to provide custom instructions to the LLM.
+
+### Changed
+
+-   **Subtitle Generation:** `audio/subtitle_generation.py` now dynamically uses subtitle styling parameters (font size, colors) loaded from `core/config.py`, allowing for easier customization.
+-   **FFmpeg Path Configuration:** Reverted `FFMPEG_PATH` in `core/config.py` to point to the newly compiled FFmpeg at `/usr/local/bin/ffmpeg`.
+-   **FFmpegNormalize Initialization:** Modified `audio/audio_processing.py` to initialize `FFmpegNormalize` with keyword arguments directly in the constructor.
+
+### Fixed
+
+-   **FFmpeg/NVENC Integration:**
+    -   Resolved "Unknown encoder 'h264_nvenc'" error by compiling FFmpeg from source with NVENC support.
+    -   Ensured MoviePy correctly uses the compiled FFmpeg by explicitly setting `FFMPEG_BINARY` in `main.py`.
+    -   Fixed "No such file or directory: 'ffprobe'" error by updating `core/utils.py` to use the absolute path to the compiled `ffprobe` executable.
+-   **Audio Normalization:**
+    -   Corrected `FFmpegNormalize` initialization in `audio/audio_processing.py` to properly pass constructor arguments, resolving the `TypeError`.
+-   **YouTube Download:**
+    -   Addressed `HTTP Error 400: Bad Request` during YouTube video download by removing the version constraint for `pytubefix` in `requirements.txt` and upgrading it to the latest available version.
+-   **Face Tracking:**
+    -   Adjusted cropping logic in `video/frame_processor.py` to ensure the main detected face remains within the output frame, preventing it from being cut off.
+
 ## [4.0.5] - 2025-06-30
 
 ### Added
@@ -105,8 +144,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     -   `scikit-learn`: Pinned to `1.2.2`
     -   `librosa`: Pinned to `0.9.2`
     -   `webcolors`: Pinned to `1.13`
-
-### Fixed
-
--   Addressed potential issues with MoviePy not finding the FFmpeg executable by explicitly setting the environment variable in `main.py`.
--   Improved robustness of JSON parsing from LLM output in `llm/llm_interaction.py` to handle various formatting inconsistencies.

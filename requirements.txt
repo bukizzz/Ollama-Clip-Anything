@@ -5,7 +5,7 @@ torchaudio==2.3.0
 faster-whisper==1.0.0
 whisper-timestamped==1.15.8
 moviepy==1.0.3
-pytubefix==1.0.0
+pytubefix
 ollama==0.2.0
 opencv-python==4.9.0.80
 numpy==1.26.4
@@ -19,6 +19,7 @@ webcolors==1.13
 ffmpeg-python==0.2.0
 pydub==0.25.1
 
+ffmpeg-normalize==1.24.0
 # General utilities
 tqdm==4.67.1
 requests==2.26.0
@@ -26,3 +27,5 @@ python-dotenv==0.19.0
 
 # Development tools (optional)
 ipython==8.0.0
+ruff==0.5.0
+pyyaml==6.0.1

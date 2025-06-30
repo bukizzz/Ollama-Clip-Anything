@@ -79,3 +79,25 @@ class VideoEffects:
         
         # Default to crossfade
         return VideoEffects.apply_scene_transition(clip1, clip2, transition_duration, 'crossfade')
+
+    @staticmethod
+    def apply_color_grading(clip: VideoClip, brightness: float = 0.0, contrast: float = 1.0, saturation: float = 1.0) -> VideoClip:
+        """Apply color grading effects (brightness, contrast, saturation)"""
+        def color_grade_frame(get_frame, t):
+            frame = get_frame(t).copy()
+
+            # Apply brightness and contrast
+            # new_frame = cv2.convertScaleAbs(frame, alpha=contrast, beta=brightness)
+            # A more robust way to apply brightness and contrast
+            new_frame = frame * contrast + brightness
+            new_frame = np.clip(new_frame, 0, 255).astype(np.uint8)
+
+            # Apply saturation
+            if saturation != 1.0:
+                hsv_frame = cv2.cvtColor(new_frame, cv2.COLOR_BGR2HSV)
+                hsv_frame[:, :, 1] = np.clip(hsv_frame[:, :, 1] * saturation, 0, 255)
+                new_frame = cv2.cvtColor(hsv_frame, cv2.COLOR_HSV2BGR)
+            
+            return new_frame
+        
+        return clip.fl(color_grade_frame)

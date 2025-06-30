@@ -1,13 +1,10 @@
-# audio_processing.py
-"""
-Handles audio extraction and transcription of the video file using faster-whisper.
-"""
 import subprocess
 import gc
 import torch
 from faster_whisper import WhisperModel
 from core.config import WHISPER_MODEL
 from core.temp_manager import get_temp_path
+from ffmpeg_normalize import FFmpegNormalize
 
 def extract_audio(video_path: str, audio_path: str) -> None:
     """Extract audio from video using FFmpeg."""
@@ -22,18 +19,40 @@ def extract_audio(video_path: str, audio_path: str) -> None:
         print("FFmpeg stderr:\n", result.stderr)
         raise RuntimeError("FFmpeg audio extraction failed.")
 
+def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> None:
+    """Normalize audio loudness using ffmpeg-normalize."""
+    print(f"Normalizing audio loudness for {input_audio_path}...")
+    norm = FFmpegNormalize()
+    norm.loudness_target = -23.0  # EBU R128 standard
+    norm.true_peak_target = -1.0
+    norm.print_stats = False
+    norm.add_media_file(input_audio_path, output_audio_path)
+    try:
+        norm.process_media()
+        print("Audio loudness normalization complete.")
+    except Exception as e:
+        print(f"Audio loudness normalization failed: {e}")
+        # Fallback to just copying the file if normalization fails
+        subprocess.run(["cp", input_audio_path, output_audio_path], check=True)
+        print("Falling back to copying original audio due to normalization failure.")
+
+def voice_separation(input_audio_path: str, output_vocals_path: str, output_music_path: str) -> None:
+    """Placeholder for voice separation. This would typically use a model like Demucs."""
+    print("Voice separation is not yet implemented. Skipping this step.")
+    # In a real implementation, you would call a voice separation library here.
+    # For now, we'll just copy the original audio to the vocals path.
+    subprocess.run(["cp", input_audio_path, output_vocals_path], check=True)
+    subprocess.run(["cp", input_audio_path, output_music_path], check=True) # For demonstration, copy to music as well
+
 def transcribe_video(video_path: str) -> list[dict]:
     """Transcribe video using faster-whisper with precise timing."""
     model = None
     try:
-        # Try to initialize faster-whisper model with fallback options
-        device = "cpu"  # Start with CPU as default
+        device = "cpu"
         compute_type = "int8"
         
-        # Only try CUDA if torch reports it's available and we can test it
         if torch.cuda.is_available():
             try:
-                # Test CUDA functionality first
                 torch.cuda.current_device()
                 device = "cuda"
                 compute_type = "float16"
@@ -68,31 +87,37 @@ def transcribe_video(video_path: str) -> list[dict]:
             else:
                 raise
         
-        audio_path = get_temp_path("temp_audio.wav")
-        extract_audio(video_path, audio_path)
+        raw_audio_path = get_temp_path("temp_audio_raw.wav")
+        extracted_audio_path = get_temp_path("temp_audio_extracted.wav")
+        normalized_audio_path = get_temp_path("temp_audio_normalized.wav")
+        vocals_audio_path = get_temp_path("temp_audio_vocals.wav")
+        music_audio_path = get_temp_path("temp_audio_music.wav")
+
+        extract_audio(video_path, raw_audio_path)
+        normalize_audio_loudness(raw_audio_path, normalized_audio_path)
+        voice_separation(normalized_audio_path, vocals_audio_path, music_audio_path) # Use normalized audio for separation
 
         print(f"Running faster-whisper transcription on {device}...")
         try:
             segments, info = model.transcribe(
-                audio_path,
+                vocals_audio_path, # Transcribe only vocals
                 word_timestamps=True,
                 condition_on_previous_text=False,
-                vad_filter=True,  # Voice activity detection for better accuracy
-                vad_parameters=dict(min_silence_duration_ms=500)  # Optimize for speech detection
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500)
             )
         except Exception as transcribe_error:
             print(f"Transcription failed with VAD enabled: {transcribe_error}")
             print("Retrying without VAD...")
             segments, info = model.transcribe(
-                audio_path,
+                vocals_audio_path, # Transcribe only vocals
                 word_timestamps=True,
                 condition_on_previous_text=False,
-                vad_filter=False  # Disable VAD as fallback
+                vad_filter=False
             )
         
         print(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
         
-        # Convert generator to list with proper formatting
         transcription = []
         for segment in segments:
             words = []

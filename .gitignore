@@ -3,6 +3,7 @@ test_nvenc_output.mp4
 
 # Ignore temporary directory created by temp_manager
 .temp/
+temp_processing/
 
 # Python cache directories
 __pycache__/

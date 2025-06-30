@@ -99,7 +99,7 @@ def sanitize_segments(segments: list[dict], max_duration: float = None) -> list[
     return cleaned
 
 
-def three_pass_llm_extraction(transcript: list[dict]) -> list[dict]:
+def three_pass_llm_extraction(transcript: list[dict], user_prompt: str = None) -> list[dict]:
     """Use a three-pass approach for robust LLM-based clip extraction."""
     min_dur, max_dur = CLIP_DURATION_RANGE
     total_duration = transcript[-1]['end']
@@ -112,7 +112,8 @@ def three_pass_llm_extraction(transcript: list[dict]) -> list[dict]:
     } for i, seg in enumerate(transcript)]
 
     print("🔄 Pass 1: Initial clip extraction...")
-    pass1_prompt = f"""
+    pass1_system_prompt = "You are an expert video editor."
+    pass1_user_prompt = f"""
 You are a video editor selecting up to 10 engaging clips. Analyze this transcript.
 For each segment, provide start time, end time, and a brief description.
 Focus on engaging moments and a duration between {min_dur}-{max_dur} seconds. Aim to identify as many distinct, valid clips as possible, even if there are slight overlaps or they are not perfectly 'complete thoughts' – these will be refined in later steps.
@@ -120,9 +121,12 @@ Total duration: {total_duration:.1f} seconds.
 Transcript data: {json.dumps(simplified_transcript[:min(50, len(simplified_transcript))], indent=1)}
 Provide selections as a numbered list, with each item clearly indicating 'Start:', 'End:', and 'Description:'.
 """
+    if user_prompt:
+        pass1_user_prompt += f"\n\nUser's specific request: {user_prompt}"
+
     pass1_output = llm_pass(LLM_MODEL, [
-        {"role": "system", "content": "You are an expert video editor."},
-        {"role": "user", "content": pass1_prompt.strip()}
+        {"role": "system", "content": pass1_system_prompt},
+        {"role": "user", "content": pass1_user_prompt.strip()}
     ])
 
     print("🔄 Pass 2: Converting to JSON...")
@@ -164,12 +168,12 @@ if torch.cuda.is_available():
             torch.cuda.empty_cache()
             print("Ollama related GPU memory released.")
 
-def get_clips_with_retry(transcript: list[dict], retry_delay=2) -> list[dict]:
+def get_clips_with_retry(transcript: list[dict], user_prompt: str = None, retry_delay=2) -> list[dict]:
     """Get clips with retry logic using the three-pass LLM approach."""
     for attempt in range(LLM_MAX_RETRIES):
         try:
             print(f"Attempting LLM clip selection ({attempt + 1}/{LLM_MAX_RETRIES})...")
-            clips = three_pass_llm_extraction(transcript)
+            clips = three_pass_llm_extraction(transcript, user_prompt)
             if len(clips) >= LLM_MIN_CLIPS_NEEDED:
                 print(f"✅ Successfully extracted {len(clips)} clips")
                 return clips[:10]

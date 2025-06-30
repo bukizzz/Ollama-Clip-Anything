@@ -1,212 +1,59 @@
-### FAILURE RECOVERY AND RESUMPTION LOGIC
+# Improvement Plan for Ollama-Clip-Anything (Based on AI-Creator Analysis)
 
-## PIPELINE DEFINITION
+This plan outlines the implementation of improvements identified from the analysis of the AI-Creator repository, addressing existing problems and enhancing core functionalities.
 
-# Define Pipeline Stages
+## 1. Core Functionality & Features
 
-- Identify and document all discrete stages in the clip generation pipeline:
-	- Video downloading (if input is URL)
-	- Transcription
-	- Segmentation (LLM-based clip identification)
-	- Clip extraction (video cutting)
-	- Subtitle generation (future stage)
-	- VFX application (future stage)
-	- B-roll integration (future stage)
-	- Final clip rendering
+*   **Implement Agent-Based System:**
+    *   Develop a sophisticated agent-based system (similar to AI-Creator's `environment/agents` and `MultiAgent` class) where different agents handle specific video production tasks (e.g., storyboarding, audio processing, video editing, content alignment). This will enable more complex and dynamic video generation.
 
-## STATE MANAGEMENT
+## 2. LLM Usage
 
-# State Tracking System
+*   **Integrate Multi-modal LLMs:**
+    *   Explore and integrate multi-modal LLMs (e.g., MiniCPM, ImageBind) to improve segment selection, enable dynamic editing based on content understanding, and generate more creative video narratives.
+    *   Adopt a structured approach for managing LLM API keys and base URLs (similar to `environment/config/llm.py` and `config.yml` in AI-Creator).
+*   **Develop Specialized LLM Agents:**
+    *   Create specialized LLM agents for tasks such as:
+        *   **Script Generation:** For dynamic cuts and scene changes.
+        *   **Content Summarization:** For news or long-form content.
+        *   **Style Transfer:** To adapt content to different tones (e.g., comedic, dramatic).
 
-- State File: `.temp_clips.json` (JSON format)
+## 3. Audio Processing
 
-- Data to Track:
-	- input_source: Path/URL of original video
-	- current_stage: Last completed stage (e.g., "transcription")
-	- completed_segments: List of already-processed clip timecodes
-	- temp_files: Critical intermediate files (e.g., `transcript.json`, `segments.json`)
-	- failure_point: Stage where failure occurred
-	- error_log: Relevant error messages
-	- segment_queue: Pending segments for processing
+*   **Enhance `audio_processing.py`:**
+    *   Implement **Voice Separation** to isolate speech from background noise or music.
+    *   Add **Loudness Normalization** for consistent audio levels across clips.
+    *   Integrate **Word-level Transcription & Alignment** for precise subtitle generation and to prevent mid-sentence/mid-word cuts.
+*   **Investigate Voice Cloning/Generation:**
+    *   Explore integrating voice cloning technologies (e.g., CosyVoice, fish-speech, seed-vc) to offer diverse voice options for subtitles or narration and adapt voices for different content styles.
 
-# Checkpoint Implementation
+## 4. Video Processing & Editing
 
-- After each pipeline stage:
-	- Validate stage output
-	- Update `.temp_clips.json`:
-		- Set `current_stage` to completed stage
-		- Record output file paths in `temp_files`
-		- Clear `failure_point` and `error_log`
-	- Persist file immediately after update
+*   **Dynamic Editing & Rhythm Sync:**
+    *   Implement rhythm detection and analysis in `video_editing.py` to enable cuts and transitions synchronized with music beats or speech patterns.
+*   **Improve Visual Retrieval & Tracking:**
+    *   Enhance `face_tracking.py` and `object_tracking.py` by:
+        *   Integrating a robust image embedding model (e.g., ImageBind) for better recognition.
+        *   Implementing a system to store and retrieve character images (`face_db`) for more accurate tracking and content alignment.
+*   **Add Visual Effects (VFX):**
+    *   Explore libraries or techniques for adding basic visual effects (text overlays, simple animations, color grading) in `video_effects.py` to make the output visually appealing.
 
-- Segment-level tracking:
-	- For clip extraction stage:
-		- Track individual segment completion in `completed_segments`
-		- Maintain pending segments in `segment_queue`
+## 5. Personalization & User Input
 
-## FAILURE CONTROL
+*   **Enhance Detailed Prompting:**
+    *   Improve the user input mechanism to accept more detailed and structured prompts, allowing users to specify desired themes, characters, editing styles, and specific phrases.
+    *   Define clear prompt templates or guidelines for users.
+*   **Implement Configurable Inputs:**
+    *   Create a configuration system (e.g., using YAML files similar to `cross_talk.yml` in AI-Creator) for custom clip themes, vertical/horizontal splits, and other personalization options. This will allow users to define and save their preferred formatting and styles.
 
-# Failure Handling
+## 6. Project Structure & Dependencies
 
-- Global exception handler:
-	- Catch all exceptions
-	- Write to state file:
-		- `failure_point`: Current stage name
-		- `error_log`: Exception details
-	- Preserve temporary files listed in `temp_files`
+*   **Adopt Modular `tools/` Directory:**
+    *   Consider creating a dedicated `tools/` directory for managing external models and libraries (e.g., large AI models) to promote modularity.
+*   **Consider Migrating to `pyproject.toml`:**
+    *   While `requirements.txt` is currently used, evaluate migrating to `pyproject.toml` for improved project management and dependency resolution in the long run.
+*   **Ensure Robust Dependency Management:**
+    *   Verify and document clear instructions for model downloads and overall dependency management, especially for large models.
 
-- Mid-segment failures:
-	- Track last processed segment
-	- Ensure no mid-sentence cuts by:
-		- Validating segment boundaries against transcript
-		- Rolling back to previous valid endpoint
+## Note: Some of these are alraedy implemented. Still see if u can improve them or fix them if broken.
 
-## RECOVERY EXECUTION
-
-# Resume Mechanism
-
-- Startup workflow:
-
-IF .temp_clips.json EXISTS:
-IF --nocache flag:
-Delete state + temp files → Fresh start
-ELIF --retry flag:
-Resume automatically
-ELSE:
-Prompt: "Previous session failed. Resume? [y/n]"
-YES → Resume
-NO → Delete state + temp files → Fresh start
-ELSE:
-Fresh start
-
-
-- Resumption process:
-	- Load `.temp_clips.json`
-	- Verify existence of `temp_files`
-	- Skip stages before `current_stage`
-	- For clip extraction:
-		- Process only segments in `segment_queue`
-		- Omit `completed_segments`
-
-## INTERFACE DESIGN
-
-# CLI Arguments
-
-- Add to argument parser:
-	- `--retry`:
-		- Auto-resume if state exists
-		- Log warning if no state found
-	- `--nocache`:
-		- Force-delete `.temp_clips.json` + associated temp files
-		- Disables resume functionality
-
-## TEMPORARY DATA CONTROL
-
-# Temporary File Management
-
-- Designate temp directory: `./temp_processing/`
-
-- File tracking:
-	- Stage outputs saved to temp directory
-	- Paths recorded in `temp_files` (relative paths)
-
-- Cleanup protocol:
-	- Successful completion → Delete all temp files + state
-	- User declines resume → Delete all temp files + state
-	- `--nocache` → Preemptive deletion
-
-## INTEGRITY PROTECTION
-
-# Validation Safeguards
-
-- State file integrity:
-	- Schema validation on load
-	- Checksum verification for critical files
-
-- Segment validation:
-	- Ensure segments align with transcript
-	- Prevent mid-word cuts by:
-		- Adjusting boundaries to nearest punctuation
-		- Flagging segments crossing sentence boundaries
-
-- Cross-stage checks:
-	- Verify temp files match pipeline stage requirements
-	- Re-run prerequisite stages if critical files corrupted
-
-## EXECUTION ROADMAP
-
-# Implementation Sequence
-
-- Add state file management utilities:
-	- `create_state_file()`
-	- `load_state_file()`
-	- `update_state_file()`
-	- `delete_state_file()`
-
-- Instrument pipeline stages with checkpointing
-
-- Implement global exception handler
-
-- Add CLI argument parsing
-
-- Build resume workflow controller
-
-- Integrate temp file validation
-
-- Add boundary validation for segments
-
-## LONG-TERM MAINTAINABILITY
-
-# Future-Proofing
-
-- State file versioning: Include `version` field
-
-- Modular stage design: Ensure new stages can:
-	- Report completion status
-	- Accept inputs from previous state
-	- Output verifiable results
-
-- Error code system: Standardize failure reasons for:
-	- Automatic recovery attempts
-	- User-friendly error reporting
-
-## SECURITY ENFORCEMENT
-
-# Security Considerations
-
-- State file sanitization:
-	- Avoid storing sensitive data
-	- Validate paths before deletion
-
-- User prompts:
-	- Explicit confirmation for destructive actions
-	- Clear warnings about file deletions
-
-## QUALITY ASSURANCE
-
-# Testing Strategy
-
-- Simulated failures:
-	- Inject failures at each stage
-	- Verify correct state persistence
-
-- Resume validation:
-	- Confirm skipped stages don't reprocess
-	- Verify segment queue handling
-
-- Edge cases:
-	- Corrupted state files
-	- Missing temp files during resume
-	- Concurrent execution prevention
-
-## DESIGN PRINCIPLES
-
-# Key Principles
-
-- Atomic Operations: Stages must fully succeed or fail completely
-
-- Idempotence: Resuming shouldn't produce duplicate outputs
-
-- User Control: Always prioritize CLI flags over automated decisions
-
-- Validation First: Never resume without verifying prerequisites

@@ -4,7 +4,7 @@
 - Compare the differences in detail and finally write a changelog.
 - Changelog is written by amending CHANGELOG.md in the newer version of the two provided.
 - Text is added on top of the existing changelogs, sorted by newest version on top. DO NOT ERASE OLD CHANGELOGS!
-- Versions to compare: 4.0.4 and 4.0.5
+- Versions to compare: 4.0.5 and 4.0.6
 - After you finish, verify no extra files that are not part of the Project like new .md files etc are added to gitignore.
 - Run the project once and verify no errors.
 - Commit and push the project with commit message: "Version (newer of the two) Beta"
