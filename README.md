@@ -21,24 +21,24 @@ This program automatically extracts engaging 60-second clips from longer videos 
 - Verify installation:
   ```bash
   python --version
-  # should show 3.11.x
+  # should show 3.12.4
   ```
 
 **macOS:**
 ```bash
-brew install python@3.11
+brew install python@3.12.4
 ```
 
 **Linux (Ubuntu/Debian):
 ```bash
 sudo apt update
-sudo apt install python3.11 python3.11-venv
+sudo apt install python3.12 python3.12-venv
 ```
 
 #### 2. Create and Activate Virtual Environment
 
 ```bash
-python3.11 -m venv clipgen_env
+python3.12 -m venv clipgen_env
 source clipgen_env/bin/activate  # Linux/macOS
 clipgen_env\Scripts\activate     # Windows
 ```
