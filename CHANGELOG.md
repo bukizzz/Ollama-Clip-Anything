@@ -14,8 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     -   The `audio/subtitle_generation.py` module has been completely rewritten to support this new format, utilizing the `whisper-timestamped` library for precise word timings.
 -   **Enhanced Transcription:**
     -   The transcription process in `audio/audio_processing.py` now generates word-level timestamps, which is a critical prerequisite for the new word-by-word subtitle feature.
--   **Failure Recovery and Resumption Plan:**
-    -   A detailed plan for failure recovery and resumption has been documented in `FAILURE RECOVERY AND RESUMPTION LOGIC.md`. This lays the groundwork for a more resilient and fault-tolerant application in future updates.
 
 ### Changed
 
