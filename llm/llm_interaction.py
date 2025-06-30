@@ -147,7 +147,7 @@ def get_clips_with_retry(transcript: list[dict], retry_delay=2) -> list[dict]:
                 print(f"⚠️ Only got {len(clips)} valid clips, need at least {LLM_MIN_CLIPS_NEEDED}.")
         except Exception as e:
             print(f"❌ Attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
+            if attempt < LLM_MAX_RETRIES - 1:
                 print(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
     raise RuntimeError(f"Failed to extract clips after {LLM_MAX_RETRIES} attempts.")

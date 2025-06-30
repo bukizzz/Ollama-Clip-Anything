@@ -95,10 +95,19 @@ def transcribe_video(video_path: str) -> list[dict]:
         # Convert generator to list with proper formatting
         transcription = []
         for segment in segments:
+            words = []
+            if segment.words:
+                for word in segment.words:
+                    words.append({
+                        'start': float(word.start),
+                        'end': float(word.end),
+                        'text': word.word.strip()
+                    })
             transcription.append({
                 'start': float(segment.start),
                 'end': float(segment.end),
-                'text': segment.text.strip()
+                'text': segment.text.strip(),
+                'words': words
             })
             
         return transcription

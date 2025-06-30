@@ -70,7 +70,7 @@ def main():
         # --- Step 4: Enhanced Video Analysis ---
         print("\n4. Performing enhanced video analysis...")
         video_analysis = analysis_and_reporting.analyze_video_content(processed_video_path)
-        
+
         # --- Step 5: Create Enhanced Clips ---
         print(f"\n5. Creating {len(clips)} enhanced video clips...")
         # Use the new enhanced processing function

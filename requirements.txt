@@ -3,13 +3,14 @@ torch==2.3.0
 torchvision==0.18.0
 torchaudio==2.3.0
 faster-whisper==1.0.0
+whisper-timestamped==1.15.8
 moviepy==1.0.3
 pytubefix==1.0.0
 ollama==0.2.0
 opencv-python==4.9.0.80
 numpy==1.26.4
 spacy==3.7.4
-mediapipe==0.10.9
+mediapipe==0.10.21
 scikit-learn==1.2.2
 librosa==0.9.2
 webcolors==1.13
@@ -19,7 +20,7 @@ ffmpeg-python==0.2.0
 pydub==0.25.1
 
 # General utilities
-tqdm==4.0.0
+tqdm==4.67.1
 requests==2.26.0
 python-dotenv==0.19.0
 
