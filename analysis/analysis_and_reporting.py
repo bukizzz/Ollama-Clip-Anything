@@ -127,7 +127,11 @@ def optimize_processing_settings(video_analysis: Dict, available_memory_gb: floa
     # Disable features if not recommended
     if not video_analysis.get('recommended_face_tracking', True):
         settings['enable_face_tracking'] = False
-    if not video_analysis.get('recommended_object_tracking', True):
+    
+    # If face tracking is enabled, disable object tracking to avoid interference
+    if settings['enable_face_tracking']:
+        settings['enable_object_tracking'] = False
+    elif not video_analysis.get('recommended_object_tracking', True):
         settings['enable_object_tracking'] = False
     
     print("Optimized processing settings:")

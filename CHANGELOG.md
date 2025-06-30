@@ -1,3 +1,14 @@
+Version 4.0.3 Beta
+
+## Enhancements & Improvements
+
+-   **Optimized Tracking Logic:** In `analysis/analysis_and_reporting.py`, added logic to disable object tracking if face tracking is enabled, preventing potential interference and optimizing processing.
+-   **Smoother Frame Transitions:** Adjusted `SMOOTHING_FACTOR` in `core/config.py` from `0.1` to `0.05` for even smoother transitions during dynamic framing.
+-   **LLM Interaction Robustness:**
+    -   Introduced `LLM_MAX_RETRIES` and `LLM_MIN_CLIPS_NEEDED` in `core/config.py` for more configurable and robust LLM clip selection.
+    -   Modified `llm/llm_interaction.py`'s `three_pass_llm_extraction` prompts to allow for more flexible clip identification (e.g., slight overlaps, not strictly "complete thoughts") in the initial pass, improving the LLM's ability to find potential clips.
+-   **Explicit FFmpeg Path Configuration:** Set `FFMPEG_PATH` in `core/config.py` to `"/usr/bin/ffmpeg"` to explicitly define the FFmpeg executable path, improving reliability across different environments.
+
 Version 4.0.2 Beta
 
 ## Major Architectural Changes

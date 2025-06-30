@@ -7,7 +7,7 @@ import json
 import re
 import time
 import ollama
-from core.config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE
+from core.config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE, LLM_MAX_RETRIES, LLM_MIN_CLIPS_NEEDED
 
 
 def llm_pass(model: str, messages: list[dict]) -> str:
@@ -87,12 +87,12 @@ def three_pass_llm_extraction(transcript: list[dict]) -> list[dict]:
 
     print("🔄 Pass 1: Initial clip extraction...")
     pass1_prompt = f"""
-You are a video editor selecting 10 engaging clips. Analyze this transcript.
+You are a video editor selecting up to 10 engaging clips. Analyze this transcript.
 For each segment, provide start time, end time, and a brief description.
-Focus on complete thoughts, engaging moments, {min_dur}-{max_dur} second duration, and no overlaps.
+Focus on engaging moments and a duration between {min_dur}-{max_dur} seconds. Aim to identify as many distinct, valid clips as possible, even if there are slight overlaps or they are not perfectly 'complete thoughts' – these will be refined in later steps.
 Total duration: {total_duration:.1f} seconds.
 Transcript data: {json.dumps(simplified_transcript[:min(50, len(simplified_transcript))], indent=1)}
-Provide selections in any clear format.
+Provide selections as a numbered list, with each item clearly indicating 'Start:', 'End:', and 'Description:'.
 """
     pass1_output = llm_pass(LLM_MODEL, [
         {"role": "system", "content": "You are an expert video editor."},
@@ -101,8 +101,8 @@ Provide selections in any clear format.
 
     print("🔄 Pass 2: Converting to JSON...")
     pass2_prompt = f"""
-Convert the following selections into a clean JSON array:
-[{{"start": 120.5, "end": 180.5, "text": "description"}}]
+Convert the following selections into a clean JSON array of objects, each with "start", "end", and "text" keys.
+Example: [{{"start": 120.5, "end": 180.5, "text": "description"}}]
 Ensure times are numbers, duration is {min_dur}-{max_dur}s, no overlaps, max 10 clips.
 Original selections: {pass1_output}
 Return ONLY the JSON array.
@@ -134,21 +134,21 @@ Return the cleaned, valid JSON array only.
         raise
 
 
-def get_clips_with_retry(transcript: list[dict], max_retries=100, retry_delay=2) -> list[dict]:
+def get_clips_with_retry(transcript: list[dict], retry_delay=2) -> list[dict]:
     """Get clips with retry logic using the three-pass LLM approach."""
-    for attempt in range(max_retries):
+    for attempt in range(LLM_MAX_RETRIES):
         try:
-            print(f"Attempting LLM clip selection ({attempt + 1}/{max_retries})...")
+            print(f"Attempting LLM clip selection ({attempt + 1}/{LLM_MAX_RETRIES})...")
             clips = three_pass_llm_extraction(transcript)
-            if len(clips) >= 1:
+            if len(clips) >= LLM_MIN_CLIPS_NEEDED:
                 print(f"✅ Successfully extracted {len(clips)} clips")
                 return clips[:10]
             else:
-                print(f"⚠️ Only got {len(clips)} valid clips, need at least 5.")
+                print(f"⚠️ Only got {len(clips)} valid clips, need at least {LLM_MIN_CLIPS_NEEDED}.")
         except Exception as e:
             print(f"❌ Attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
                 print(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
-    raise RuntimeError(f"Failed to extract clips after {max_retries} attempts.")
+    raise RuntimeError(f"Failed to extract clips after {LLM_MAX_RETRIES} attempts.")
 
