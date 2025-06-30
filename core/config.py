@@ -23,6 +23,10 @@ SMOOTHING_FACTOR = 0.1 # Lower values mean more smoothing (0.0 to 1.0)
 # --- Encoding Settings ---
 VIDEO_ENCODER = "h264_nvenc"  # Options: "h264_nvenc" (NVIDIA GPU), "libx264" (CPU), "hevc_nvenc", "av1_nvenc" etc.
 
+# Path to FFmpeg executable. Set to None to use system's PATH.
+# Example: FFMPEG_PATH = "/usr/local/bin/ffmpeg" or "C:/ffmpeg/bin/ffmpeg.exe"
+FFMPEG_PATH = None
+
 FFMPEG_GLOBAL_PARAMS = ['-pix_fmt', 'yuv420p', '-movflags', '+faststart']
 FFMPEG_ENCODER_PARAMS = {
     "h264_nvenc": [],

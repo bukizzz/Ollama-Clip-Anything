@@ -1,5 +1,8 @@
 import os
-os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
+from core.config import FFMPEG_PATH
+
+if FFMPEG_PATH:
+    os.environ["IMAGEIO_FFMPEG_EXE"] = FFMPEG_PATH
 
 # main.py
 """

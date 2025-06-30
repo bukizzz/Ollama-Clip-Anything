@@ -7,7 +7,7 @@ This program automatically extracts engaging 60-second clips from longer videos 
 ### Prerequisites
 
 - Python 3.11 (recommended) or later
-- FFmpeg (must be installed and in system PATH)
+- FFmpeg (must be installed on your system. If not in system PATH, specify its path in `core/config.py`)
 - NVIDIA GPU (optional but recommended for faster processing)
 
 ### Step-by-Step Installation
@@ -43,21 +43,26 @@ source clipgen_env/bin/activate  # Linux/macOS
 clipgen_env\Scripts\activate     # Windows
 ```
 
-#### 3. Install FFmpeg
+#### 3. Install FFmpeg and Configure Path
+
+FFmpeg is required for video processing. You can download it from [ffmpeg.org](https://ffmpeg.org/).
 
 **Windows:**
-- Download from ffmpeg.org
-- Extract and add bin folder to system PATH
+- Download the FFmpeg build.
+- Extract the archive and add the `bin` folder to your system's PATH environment variable.
+- Alternatively, you can specify the full path to `ffmpeg.exe` in `core/config.py` (e.g., `FFMPEG_PATH = "C:/ffmpeg/bin/ffmpeg.exe"`).
 
 **macOS:**
 ```bash
 brew install ffmpeg
 ```
+- If `ffmpeg` is not in your system's PATH, you can specify its full path in `core/config.py` (e.g., `FFMPEG_PATH = "/usr/local/bin/ffmpeg"`).
 
 **Linux:**
 ```bash
 sudo apt install ffmpeg
 ```
+- If `ffmpeg` is not in your system's PATH, you can specify its full path in `core/config.py` (e.g., `FFMPEG_PATH = "/usr/bin/ffmpeg"`).
 
 #### 4. Install Requirements
 
