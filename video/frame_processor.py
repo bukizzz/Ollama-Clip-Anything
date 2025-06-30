@@ -49,16 +49,31 @@ class FrameProcessor:
         if crop_height % 2 != 0:
             crop_height -= 1
 
-        crop_x1 = max(0, center_x - crop_width // 2)
-        crop_y1 = max(0, center_y - crop_height // 2)
+        # Calculate initial crop based on smoothed center
+        crop_x1 = int(self.smoothed_center_x - crop_width // 2)
+        crop_y1 = int(self.smoothed_center_y - crop_height // 2)
 
-        if crop_x1 + crop_width > current_w:
-            crop_x1 = current_w - crop_width
-        if crop_y1 + crop_height > current_h:
-            crop_y1 = current_h - crop_height
+        # Adjust crop to ensure main face is within bounds
+        if main_face:
+            face_x, face_y, face_w, face_h = main_face['bbox']
+            
+            # Ensure face is not cut off on the left
+            if face_x < crop_x1:
+                crop_x1 = face_x
+            # Ensure face is not cut off on the right
+            if face_x + face_w > crop_x1 + crop_width:
+                crop_x1 = (face_x + face_w) - crop_width
+            
+            # Ensure face is not cut off on the top
+            if face_y < crop_y1:
+                crop_y1 = face_y
+            # Ensure face is not cut off on the bottom
+            if face_y + face_h > crop_y1 + crop_height:
+                crop_y1 = (face_y + face_h) - crop_height
 
-        crop_x1 = max(0, crop_x1)
-        crop_y1 = max(0, crop_y1)
+        # Ensure crop stays within original frame boundaries
+        crop_x1 = max(0, min(crop_x1, current_w - crop_width))
+        crop_y1 = max(0, min(crop_y1, current_h - crop_height))
 
         if self.face_tracker and faces:
             pass

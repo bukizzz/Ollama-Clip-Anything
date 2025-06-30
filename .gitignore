@@ -18,3 +18,6 @@ ffmpeg
 
 # Test related files
 tests/
+
+# Ignore findings.txt
+findings.txt

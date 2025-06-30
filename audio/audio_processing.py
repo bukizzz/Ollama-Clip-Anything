@@ -28,7 +28,7 @@ def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> N
     norm.print_stats = False
     norm.add_media_file(input_audio_path, output_audio_path)
     try:
-        norm.process_media()
+        norm.execute()
         print("Audio loudness normalization complete.")
     except Exception as e:
         print(f"Audio loudness normalization failed: {e}")

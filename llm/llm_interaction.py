@@ -26,20 +26,7 @@ def llm_pass(model: str, messages: list[dict]) -> str:
 
 def cleanup():
     """Release resources held by the Ollama client by unloading the model."""
-    try:
-        # Explicitly unload the Ollama model using a shell command
-        # This is necessary as the Python client does not expose a direct unload method.
-        print(f"Attempting to unload Ollama model: {LLM_MODEL}...")
-        result = subprocess.run(["ollama", "unload", LLM_MODEL], check=True, capture_output=True, text=True)
-        print(f"Ollama model {LLM_MODEL} unloaded successfully.")
-        print(f"Ollama unload stdout: {result.stdout}")
-        print(f"Ollama unload stderr: {result.stderr}")
-    except FileNotFoundError:
-        print("Warning: 'ollama' command not found. Ensure Ollama is installed and in your PATH.")
-    except subprocess.CalledProcessError as e:
-        print(f"Error unloading Ollama model: {e.stderr}")
-    except Exception as e:
-        print(f"An unexpected error occurred during Ollama cleanup: {e}")
+    
 
     try:
         if torch.cuda.is_available():
