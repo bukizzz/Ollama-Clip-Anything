@@ -6,7 +6,7 @@ This program automatically extracts engaging 60-second clips from longer videos 
 
 ### Prerequisites
 
-- Python 3.11 (recommended) or later
+- Python 3.12.4 (recommended)
 - FFmpeg (must be installed on your system. If not in system PATH, specify its path in `core/config.py`)
 - NVIDIA GPU (optional but recommended for faster processing)
 
@@ -15,7 +15,7 @@ This program automatically extracts engaging 60-second clips from longer videos 
 #### 1. Install Python 3.11
 
 **Windows:**
-- Download Python 3.11 installer from python.org
+- Download Python 3.12.4 installer from python.org
 - Run installer
 - Check "Add Python to PATH" during installation
 - Verify installation:
