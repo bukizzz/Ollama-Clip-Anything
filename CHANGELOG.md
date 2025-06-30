@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.7] - 2025-06-30
+
+### Added
+
+-   **Voice Separation Placeholder:** Added a placeholder function `voice_separation` in `audio/audio_processing.py` to prepare for future voice isolation features.
+-   **Rhythm Detection Placeholder:** Added a placeholder function `detect_rhythm_and_beats` in `video/video_editing.py` for future rhythm and beat detection.
+-   **Visual Retrieval & Tracking Enhancements (Placeholders):**
+    -   Added `face_db` and `image_embedding_model` placeholders in `video/face_tracking.py` for improved face recognition.
+    -   Added `image_embedding_model` placeholder in `video/object_tracking.py` for improved object recognition.
+-   **Visual Effects Enhancements (Placeholders):**
+    -   Added `add_text_overlay` and `apply_simple_animation` placeholders in `video/video_effects.py` for future visual effects.
+-   **Configurable Personalization Options:**
+    -   Introduced `custom_clip_themes` in `core/config.yaml` for user-defined clip formatting options (e.g., vertical/horizontal split, two-face detection).
+    -   `core/config.py` was updated to load these new personalization settings.
+-   **Modular Tools Directory (Placeholder):** Added a `TODO` comment in `main.py` to consider creating a dedicated `tools/` directory for managing external models and libraries.
+
+### Fixed
+
+-   **Audio Normalization:** Corrected `FFmpegNormalize` usage in `audio/audio_processing.py` from `execute()` to `run()`.
+
 ## [4.0.6] - 2025-06-30
 
 ### Added

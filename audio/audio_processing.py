@@ -28,7 +28,7 @@ def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> N
     norm.print_stats = False
     norm.add_media_file(input_audio_path, output_audio_path)
     try:
-        norm.execute()
+        norm.run_normalization()
         print("Audio loudness normalization complete.")
     except Exception as e:
         print(f"Audio loudness normalization failed: {e}")
@@ -37,9 +37,9 @@ def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> N
         print("Falling back to copying original audio due to normalization failure.")
 
 def voice_separation(input_audio_path: str, output_vocals_path: str, output_music_path: str) -> None:
-    """Placeholder for voice separation. This would typically use a model like Demucs."""
+    """Placeholder for voice separation. This would typically use a model like Demucs or Spleeter."""
     print("Voice separation is not yet implemented. Skipping this step.")
-    # In a real implementation, you would call a voice separation library here.
+    # TODO: Integrate a voice separation library here (e.g., Demucs, Spleeter)
     # For now, we'll just copy the original audio to the vocals path.
     subprocess.run(["cp", input_audio_path, output_vocals_path], check=True)
     subprocess.run(["cp", input_audio_path, output_music_path], check=True) # For demonstration, copy to music as well

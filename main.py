@@ -21,6 +21,8 @@ from agents.video_analysis_agent import VideoAnalysisAgent
 from agents.video_editing_agent import VideoEditingAgent
 from agents.results_summary_agent import ResultsSummaryAgent
 
+# TODO: Consider creating a dedicated 'tools/' directory for managing external models and libraries.
+
 if FFMPEG_PATH:
     os.environ["IMAGEIO_FFMPEG_EXE"] = FFMPEG_PATH
 

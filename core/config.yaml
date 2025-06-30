@@ -15,3 +15,13 @@ smoothing_factor: 0.05
 # LLM settings
 llm_max_retries: 100
 llm_min_clips_needed: 1
+
+# Personalization settings
+custom_clip_themes: # Placeholder for custom clip themes
+  - name: "default"
+    settings:
+      vertical_split: false
+      horizontal_split: false
+      two_face_detection: false
+      # Add more theme-specific settings here
+

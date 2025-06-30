@@ -101,3 +101,17 @@ class VideoEffects:
             return new_frame
         
         return clip.fl(color_grade_frame)
+
+    @staticmethod
+    def add_text_overlay(clip: VideoClip, text: str, duration: float, font_size: int = 50, color: str = 'white', position: Tuple[int, int] = ('center', 'center')) -> VideoClip:
+        """Placeholder for adding text overlays to a clip."""
+        print("Text overlay functionality is not yet implemented. Skipping this step.")
+        # In a real implementation, you would use MoviePy's TextClip or similar.
+        return clip
+
+    @staticmethod
+    def apply_simple_animation(clip: VideoClip, animation_type: str = 'fade_in', duration: float = 1.0) -> VideoClip:
+        """Placeholder for applying simple animations to a clip."""
+        print("Simple animation functionality is not yet implemented. Skipping this step.")
+        # In a real implementation, you would use MoviePy's fx.all.fadein/fadeout or custom animations.
+        return clip

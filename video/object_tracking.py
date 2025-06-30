@@ -15,6 +15,8 @@ class ObjectTracker:
         self.model = None
         self.tracker = cv2.legacy.TrackerCSRT_create()
         self.tracked_objects = {}
+        # Placeholder for an image embedding model (e.g., ImageBind) for better recognition
+        # self.image_embedding_model = None
         self.initialize_model()
         
         # COCO class names
