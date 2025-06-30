@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.5] - 2025-06-30
+
+### Added
+
+-   **Failure Recovery and Resumption System:**
+    -   New module `core/state_manager.py` introduced to manage application state, enabling checkpointing and resumption of processing after failures.
+    -   State is saved to `.temp_clips.json` in the new `temp_processing` directory.
+    -   `main.py` now includes logic to load/save state, and new CLI arguments `--retry` (auto-resume) and `--nocache` (force fresh start) are added.
+    -   `core/config.py` now defines `STATE_FILE = ".temp_clips.json"`.
+-   **Process Termination Utility:**
+    -   New function `terminate_existing_processes()` in `core/utils.py` to terminate other running instances of `main.py` at startup, preventing conflicts.
+    -   `psutil` dependency added for process management.
+-   **Ollama Model Cleanup:**
+    -   New `cleanup()` function in `llm/llm_interaction.py` to explicitly unload the Ollama model and clear associated GPU memory, improving resource management.
+
+### Changed
+
+-   **Temporary Directory Location:** `TEMP_DIR` in `core/config.py` changed from `".temp"` to `"temp_processing"` to better reflect its purpose and avoid conflicts.
+-   **Main Application Flow:** `main.py` has been significantly refactored to integrate the new state management system, allowing for seamless resumption of the pipeline from the last completed stage.
+-   **LLM Interaction:** `llm/llm_interaction.py` now includes `subprocess` and `torch` imports for the new cleanup functionality.
+
 ## [4.0.4] - 2025-06-30
 
 ### Added
@@ -14,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     -   The `audio/subtitle_generation.py` module has been completely rewritten to support this new format, utilizing the `whisper-timestamped` library for precise word timings.
 -   **Enhanced Transcription:**
     -   The transcription process in `audio/audio_processing.py` now generates word-level timestamps, which is a critical prerequisite for the new word-by-word subtitle feature.
+-   **Failure Recovery and Resumption Plan:**
+    -   A detailed plan for failure recovery and resumption has been documented in `FAILURE RECOVERY AND RESUMPTION LOGIC.md`. This lays the groundwork for a more resilient and fault-tolerant application in future updates.
 
 ### Changed
 

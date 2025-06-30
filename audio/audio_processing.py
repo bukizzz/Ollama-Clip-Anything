@@ -6,8 +6,8 @@ import subprocess
 import gc
 import torch
 from faster_whisper import WhisperModel
-from core.temp_manager import get_temp_path
 from core.config import WHISPER_MODEL
+from core.temp_manager import get_temp_path
 
 def extract_audio(video_path: str, audio_path: str) -> None:
     """Extract audio from video using FFmpeg."""

@@ -7,6 +7,8 @@ import json
 import re
 import time
 import ollama
+import subprocess # Import subprocess to run shell commands
+import torch # Import torch for CUDA memory management
 from core.config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE, LLM_MAX_RETRIES, LLM_MIN_CLIPS_NEEDED
 
 
@@ -21,6 +23,30 @@ def llm_pass(model: str, messages: list[dict]) -> str:
     except Exception as e:
         print(f"LLM request failed: {e}")
         raise
+
+def cleanup():
+    """Release resources held by the Ollama client by unloading the model."""
+    try:
+        # Explicitly unload the Ollama model using a shell command
+        # This is necessary as the Python client does not expose a direct unload method.
+        print(f"Attempting to unload Ollama model: {LLM_MODEL}...")
+        result = subprocess.run(["ollama", "unload", LLM_MODEL], check=True, capture_output=True, text=True)
+        print(f"Ollama model {LLM_MODEL} unloaded successfully.")
+        print(f"Ollama unload stdout: {result.stdout}")
+        print(f"Ollama unload stderr: {result.stderr}")
+    except FileNotFoundError:
+        print("Warning: 'ollama' command not found. Ensure Ollama is installed and in your PATH.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error unloading Ollama model: {e.stderr}")
+    except Exception as e:
+        print(f"An unexpected error occurred during Ollama cleanup: {e}")
+
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            print("Ollama related GPU memory released.")
+    except ImportError:
+        pass # torch not installed or not relevant
 
 
 def extract_json_from_text(text: str) -> list[dict]:
@@ -133,6 +159,10 @@ Return the cleaned, valid JSON array only.
         print(f"❌ Three-pass extraction failed at final parsing: {e}")
         raise
 
+
+if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            print("Ollama related GPU memory released.")
 
 def get_clips_with_retry(transcript: list[dict], retry_delay=2) -> list[dict]:
     """Get clips with retry logic using the three-pass LLM approach."""

@@ -1,4 +1,4 @@
-I# Ignore temporary files generated during testing
+# Ignore temporary files generated during testing
 test_nvenc_output.mp4
 
 # Ignore temporary directory created by temp_manager
@@ -17,6 +17,3 @@ ffmpeg
 
 # Test related files
 tests/
-
-# Gemini instruction file
-GEMINI_WORKFILE.md

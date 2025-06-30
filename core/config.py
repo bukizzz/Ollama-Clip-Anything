@@ -4,7 +4,8 @@ Central configuration file for the video processing application.
 """
 
 # --- Directory Settings ---
-TEMP_DIR = ".temp"
+TEMP_DIR = "temp_processing"
+STATE_FILE = ".temp_clips.json"
 OUTPUT_DIR = "videos"
 CLIP_PREFIX = "clip"
 

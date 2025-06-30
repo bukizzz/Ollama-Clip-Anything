@@ -6,7 +6,7 @@ This program automatically extracts engaging 60-second clips from longer videos 
 
 ### Prerequisites
 
-- Python 3.12.4 (recommended)
+- Python 3.11 (recommended) or later
 - FFmpeg (must be installed on your system. If not in system PATH, specify its path in `core/config.py`)
 - NVIDIA GPU (optional but recommended for faster processing)
 
@@ -15,30 +15,30 @@ This program automatically extracts engaging 60-second clips from longer videos 
 #### 1. Install Python 3.11
 
 **Windows:**
-- Download Python 3.12.4 installer from python.org
+- Download Python 3.11 installer from python.org
 - Run installer
 - Check "Add Python to PATH" during installation
 - Verify installation:
   ```bash
   python --version
-  # should show 3.12.4
+  # should show 3.11.x
   ```
 
 **macOS:**
 ```bash
-brew install python@3.12.4
+brew install python@3.11
 ```
 
 **Linux (Ubuntu/Debian):
 ```bash
 sudo apt update
-sudo apt install python3.12 python3.12-venv
+sudo apt install python3.11 python3.11-venv
 ```
 
 #### 2. Create and Activate Virtual Environment
 
 ```bash
-python3.12 -m venv clipgen_env
+python3.11 -m venv clipgen_env
 source clipgen_env/bin/activate  # Linux/macOS
 clipgen_env\Scripts\activate     # Windows
 ```

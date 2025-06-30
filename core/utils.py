@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import platform
 import ollama
+import psutil
 from core.temp_manager import get_temp_path
 from core.config import LLM_MODEL
 
@@ -37,6 +38,24 @@ def convert_av1_to_hevc(video_path: str) -> str:
     except subprocess.CalledProcessError as e:
         print(f"FFmpeg conversion failed. Stderr: {e.stderr}")
         raise RuntimeError(f"Failed to convert AV1 video: {e}")
+
+def terminate_existing_processes():
+    """Terminates any other running instances of the current script."""
+    current_pid = os.getpid()
+    
+    # Find the actual main.py script name
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.info['name'] == 'python' and proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
+                if proc.info['pid'] != current_pid:
+                    print(f"Found existing main.py process (PID: {proc.info['pid']}). Terminating...")
+                    proc.terminate()
+                    proc.wait(timeout=5) # Wait for process to terminate
+                    if proc.is_running():
+                        print(f"Process {proc.info['pid']} did not terminate gracefully, killing...")
+                        proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
 
 def get_video_info(video_path: str) -> dict:
     """Get video information using ffprobe."""
