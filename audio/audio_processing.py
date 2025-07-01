@@ -5,6 +5,7 @@ from faster_whisper import WhisperModel
 from core.config import WHISPER_MODEL
 from core.temp_manager import get_temp_path
 from ffmpeg_normalize import FFmpegNormalize
+from llm import llm_interaction # Import llm_interaction
 
 def extract_audio(video_path: str, audio_path: str) -> None:
     """Extract audio from video using FFmpeg."""
@@ -16,7 +17,7 @@ def extract_audio(video_path: str, audio_path: str) -> None:
     print("Running FFmpeg audio extraction...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print("FFmpeg stderr:\n", result.stderr)
+        logger.error("FFmpeg stderr:\n", result.stderr)
         raise RuntimeError("FFmpeg audio extraction failed.")
 
 def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> None:
@@ -144,3 +145,40 @@ def transcribe_video(video_path: str) -> list[dict]:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             print("faster-whisper model unloaded and GPU memory released.")
+
+def analyze_transcript_with_llm(transcript: list[dict]) -> dict:
+    """Analyzes the transcript using an LLM to identify themes, sentiment, and speaker changes."""
+    print("Analyzing transcript with LLM for themes, sentiment, and speaker changes...")
+    
+    # Prepare a simplified version of the transcript for the LLM
+    simplified_transcript = [{
+        "start": round(seg['start'], 1),
+        "end": round(seg['end'], 1),
+        "text": seg['text']
+    } for seg in transcript]
+
+    llm_prompt = f"""
+    Analyze the following video transcript and provide:
+    1. Main themes or topics discussed.
+    2. Overall sentiment (e.g., positive, negative, neutral, mixed).
+    3. Any noticeable speaker changes or distinct voices (if detectable from the text).
+    4. Key takeaways or summary points.
+
+    Transcript:
+    {simplified_transcript}
+
+    Provide the output in a structured JSON format with keys: "themes", "sentiment", "speaker_changes", "key_takeaways".
+    """
+    
+    try:
+        response = llm_interaction.llm_pass(llm_interaction.LLM_MODEL, [
+            {"role": "system", "content": "You are an expert in transcript analysis."},
+            {"role": "user", "content": llm_prompt.strip()}
+        ])
+        
+        analysis_results = llm_interaction.extract_json_from_text(response)
+        print("Transcript analysis by LLM complete.")
+        return analysis_results
+    except Exception as e:
+        print(f"Failed to analyze transcript with LLM: {e}")
+        return {"themes": [], "sentiment": "unknown", "speaker_changes": "not detected", "key_takeaways": []}

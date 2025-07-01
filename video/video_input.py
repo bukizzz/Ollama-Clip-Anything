@@ -107,7 +107,7 @@ def download_youtube_video(url: str, quality_choice: int = None) -> str:
             print("Merging video and audio...")
             result = subprocess.run(merge_cmd, capture_output=True, text=True)
             if result.returncode != 0:
-                print("FFmpeg merge failed. FFmpeg stderr:\n", result.stderr)
+                # print("FFmpeg merge failed. FFmpeg stderr:\n", result.stderr)
                 raise RuntimeError("Failed to merge video and audio with FFmpeg.")
             else:
                 os.remove(video_path)

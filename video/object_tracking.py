@@ -133,4 +133,4 @@ class ObjectTracker:
             self.model = None
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            print("Object detection model unloaded and GPU memory released.")
+            # print("Object detection model unloaded and GPU memory released.")

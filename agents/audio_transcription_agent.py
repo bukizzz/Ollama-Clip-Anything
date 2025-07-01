@@ -24,6 +24,11 @@ class AudioTranscriptionAgent(Agent):
                 "current_stage": "transcription_complete",
                 "temp_files": context.get("temp_files", {}).update({"transcription": "transcription_data_in_state"}) # Placeholder for actual transcription file if saved
             })
+            
+            # Analyze transcript with LLM
+            print("Analyzing transcript with LLM...")
+            llm_analysis = audio_processing.analyze_transcript_with_llm(transcription)
+            context.update({"llm_transcript_analysis": llm_analysis})
         else:
             print("⏩ Skipping transcription. Loaded from state.")
             

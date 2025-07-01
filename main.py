@@ -13,8 +13,10 @@ from llm import llm_interaction
 from core import utils
 
 # Import agents
-from agents.multi_agent import MultiAgent
+from core.agent_manager import AgentManager
 from agents.video_input_agent import VideoInputAgent
+from agents.storyboarding_agent import StoryboardingAgent
+from agents.content_alignment_agent import ContentAlignmentAgent
 from agents.audio_transcription_agent import AudioTranscriptionAgent
 from agents.llm_selection_agent import LLMSelectionAgent
 from agents.video_analysis_agent import VideoAnalysisAgent
@@ -97,14 +99,22 @@ def main():
         state = state_manager.load_state_file() or state # Reload to ensure it's the latest from disk if created
         
         # Initialize MultiAgent with the pipeline
-        pipeline = MultiAgent([
+        pipeline = AgentManager([
             VideoInputAgent(),
+            StoryboardingAgent(),
+            ContentAlignmentAgent(),
             AudioTranscriptionAgent(),
             LLMSelectionAgent(),
             VideoAnalysisAgent(),
             VideoEditingAgent(),
             ResultsSummaryAgent()
         ])
+
+        # Parse user prompt if provided
+        if args.user_prompt:
+            from core.prompt_parser import parse_user_prompt
+            parsed_prompt = parse_user_prompt(args.user_prompt)
+            state["parsed_user_prompt"] = parsed_prompt
 
         # Run the pipeline
         context = pipeline.run(state)
@@ -119,19 +129,19 @@ def main():
             "error_log": "Process interrupted by user."
         })
     except Exception as e:
-        print(f"\n\n❌ A fatal error occurred: {e}")
+        logging.error(f"\n\n❌ A fatal error occurred: {e}")
         traceback.print_exc()
         state_manager.update_state_file({
             "failure_point": state.get("current_stage", "unknown"),
             "error_log": str(e)
         })
-        print("\n💡 Troubleshooting:")
-        print("   - Ensure FFmpeg and Ollama are properly installed and running.")
-        print("   - Verify the input video is not corrupted.")
-        print("   - Check for sufficient disk space.")
-        print("   - Ensure all required Python packages are installed:")
-        print("     pip install opencv-python torch torchvision mediapipe spacy scikit-learn librosa webcolors")
-        print("     python -m spacy download en_core_web_sm")
+        logging.info("\n💡 Troubleshooting:")
+        logging.info("   - Ensure FFmpeg and Ollama are properly installed and running.")
+        logging.info("   - Verify the input video is not corrupted.")
+        logging.info("   - Check for sufficient disk space.")
+        logging.info("   - Ensure all required Python packages are installed:")
+        logging.info("     pip install opencv-python torch torchvision mediapipe spacy scikit-learn librosa webcolors Pillow")
+        logging.info("     python -m spacy download en_core_web_sm")
         utils.print_system_info()
     finally:
         if context and context.get("current_stage") == "results_summary_complete": # Assuming successful completion means all stages before final clip creation are done

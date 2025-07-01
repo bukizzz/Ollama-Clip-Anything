@@ -9,7 +9,7 @@ import time
 import ollama
 import subprocess # Import subprocess to run shell commands
 import torch # Import torch for CUDA memory management
-from core.config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE, LLM_MAX_RETRIES, LLM_MIN_CLIPS_NEEDED
+from core.config import LLM_MODEL, CLIP_DURATION_RANGE, CLIP_VALIDATION_RANGE, LLM_MAX_RETRIES, LLM_MIN_CLIPS_NEEDED, LLM_CONFIG
 
 
 def llm_pass(model: str, messages: list[dict]) -> str:
@@ -105,13 +105,13 @@ You are a video editor selecting up to 10 engaging clips. Analyze this transcrip
 For each segment, provide start time, end time, and a brief description.
 Focus on engaging moments and a duration between {min_dur}-{max_dur} seconds. Aim to identify as many distinct, valid clips as possible, even if there are slight overlaps or they are not perfectly 'complete thoughts' – these will be refined in later steps.
 Total duration: {total_duration:.1f} seconds.
-Transcript data: {json.dumps(simplified_transcript[:min(50, len(simplified_transcript))], indent=1)}
+# Transcript data: {json.dumps(simplified_transcript[:min(50, len(simplified_transcript))], indent=1)}
 Provide selections as a numbered list, with each item clearly indicating 'Start:', 'End:', and 'Description:'.
 """
     if user_prompt:
         pass1_user_prompt += f"\n\nUser's specific request: {user_prompt}"
 
-    pass1_output = llm_pass(LLM_MODEL, [
+    pass1_output = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
         {"role": "system", "content": pass1_system_prompt},
         {"role": "user", "content": pass1_user_prompt.strip()}
     ])
@@ -124,7 +124,7 @@ Ensure times are numbers, duration is {min_dur}-{max_dur}s, no overlaps, max 10 
 Original selections: {pass1_output}
 Return ONLY the JSON array.
 """
-    pass2_output = llm_pass(LLM_MODEL, [
+    pass2_output = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
         {"role": "system", "content": "You are a JSON formatter."},
         {"role": "user", "content": pass2_prompt.strip()}
     ])
@@ -136,7 +136,7 @@ no overlaps, times are within 0 to {total_duration:.1f}s.
 Input JSON: {pass2_output}
 Return the cleaned, valid JSON array only.
 """
-    pass3_output = llm_pass(LLM_MODEL, [
+    pass3_output = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
         {"role": "system", "content": "You are a JSON validator."},
         {"role": "user", "content": pass3_prompt.strip()}
     ])

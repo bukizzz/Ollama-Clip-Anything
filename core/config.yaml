@@ -16,6 +16,14 @@ smoothing_factor: 0.05
 llm_max_retries: 100
 llm_min_clips_needed: 1
 
+# LLM settings
+llm:
+  min_model: "MiniCPM"
+  image_model: "ImageBind"
+  api_keys:
+    openai: "YOUR_OPENAI_KEY"
+    ollama: "http://localhost:11434"
+
 # Personalization settings
 custom_clip_themes: # Placeholder for custom clip themes
   - name: "default"

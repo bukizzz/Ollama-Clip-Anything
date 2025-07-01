@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.8] - 2025-07-01
+
+### Added
+
+-   **Modular Agent System:**
+    -   Introduced `core/agent_manager.py` to orchestrate agent execution, replacing `agents/multi_agent.py`.
+    -   Added new agents: `agents/storyboarding_agent.py` (for frame analysis and storyboard generation) and `agents/content_alignment_agent.py` (for audio/video synchronization).
+    -   Updated `main.py` to integrate the new `AgentManager` and the new agents into the pipeline.
+-   **Enhanced LLM Integration:**
+    -   Expanded `core/llm_models.py` with more detailed placeholder functions for multi-modal LLMs (MiniCPM, ImageBind) and utility functions for base64 image conversion.
+    -   Updated `core/config.yaml` to include a dedicated `llm` section for LLM configuration settings.
+    -   Integrated LLM-based transcript analysis into `audio/audio_processing.py`.
+    -   Implemented LLM-based user prompt parsing in `core/prompt_parser.py`.
+-   **Rhythm Detection & Sync:**
+    -   Implemented `detect_rhythm_and_beats` and `sync_cuts_with_beats` in `video/video_editing.py` using `librosa` for audio beat detection and clip synchronization.
+-   **Visual Effects & Overlays:**
+    -   Implemented `add_text_overlay` and `apply_simple_animation` in `video/video_effects.py` for text overlays and basic animations.
+-   **Face Tracking Database:**
+    -   Added basic face database functionality in `video/face_tracking.py` with methods for loading, saving, and managing face embeddings.
+-   **Voice Cloning Placeholder:**
+    -   Introduced `audio/voice_cloning.py` as a placeholder for future voice cloning/generation features.
+-   **Project Structure & Dependencies:**
+    -   Created `tools/download_models.py` as a placeholder for external model download scripts.
+    -   Added `pyproject.toml` for modern project setup and dependency management.
+    -   Updated `.gitignore` to include `video/face_db.json` and `pyproject.toml`.
+
+### Changed
+
+-   **Dependency Management:**
+    -   Adjusted `mediapipe` version to `0.10.13` and `librosa` to an unpinned version in `requirements.txt` for compatibility.
+    -   Added `Pillow` and `soundfile==0.12.1` to `requirements.txt`.
+-   **Main Application Flow:**
+    -   Modified `main.py` to automatically resume from a previous session state in non-interactive environments, avoiding `EOFError`. (Note: This change was reverted as per user's request to maintain interactive prompt behavior).
+-   **Logging & Debugging:**
+    -   Adjusted logging levels and removed some verbose print statements across `audio/audio_processing.py`, `video/object_tracking.py`, `video/scene_detection.py`, `video/video_editing.py`, and `video/video_input.py` for cleaner console output.
+    -   Disabled `tqdm` progress bar in `video/video_editing.py`.
+
+### Fixed
+
+-   **`scipy.signal.hann` Error:** Resolved the `module 'scipy.signal' has no attribute 'hann'` error by updating `librosa` and `mediapipe` dependencies.
+-   **FFprobe Path:** Corrected the hardcoded `ffprobe` path in `core/utils.py` for re-probing converted videos.
+
 ## [4.0.7] - 2025-06-30
 
 ### Added

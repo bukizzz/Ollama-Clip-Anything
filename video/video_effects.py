@@ -102,16 +102,22 @@ class VideoEffects:
         
         return clip.fl(color_grade_frame)
 
+    from moviepy.editor import TextClip
+
     @staticmethod
     def add_text_overlay(clip: VideoClip, text: str, duration: float, font_size: int = 50, color: str = 'white', position: Tuple[int, int] = ('center', 'center')) -> VideoClip:
-        """Placeholder for adding text overlays to a clip."""
-        print("Text overlay functionality is not yet implemented. Skipping this step.")
-        # In a real implementation, you would use MoviePy's TextClip or similar.
-        return clip
+        """Adds a text overlay to a clip."""
+        txt_clip = TextClip(text, fontsize=font_size, color=color, font='Arial-Bold')
+        txt_clip = txt_clip.set_pos(position).set_duration(duration)
+        return concatenate_videoclips([clip, txt_clip.set_start(clip.duration - duration)], method="compose")
 
     @staticmethod
     def apply_simple_animation(clip: VideoClip, animation_type: str = 'fade_in', duration: float = 1.0) -> VideoClip:
-        """Placeholder for applying simple animations to a clip."""
-        print("Simple animation functionality is not yet implemented. Skipping this step.")
-        # In a real implementation, you would use MoviePy's fx.all.fadein/fadeout or custom animations.
-        return clip
+        """Applies simple animations to a clip."""
+        if animation_type == 'fade_in':
+            return clip.fadein(duration)
+        elif animation_type == 'fade_out':
+            return clip.fadeout(duration)
+        else:
+            print(f"Unknown animation type: {animation_type}. Skipping animation.")
+            return clip

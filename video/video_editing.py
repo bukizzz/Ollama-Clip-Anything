@@ -4,6 +4,8 @@ import time
 from typing import List, Dict, Tuple, Optional
 
 from moviepy.editor import VideoFileClip
+from tqdm import tqdm
+tqdm.disable = True
 
 from core.temp_manager import get_temp_path
 from core.config import OUTPUT_DIR, CLIP_PREFIX, VIDEO_ENCODER, FFMPEG_GLOBAL_PARAMS, FFMPEG_ENCODER_PARAMS
@@ -17,7 +19,7 @@ from audio.subtitle_generation import create_ass_file
 # Configure MoviePy's logger to capture FFmpeg commands
 logging.setLoggerClass(FFMPEGCommandLogger)
 logger = logging.getLogger('moviepy')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
 # Add a StreamHandler to ensure messages are printed to console
 if not logger.handlers:
@@ -127,6 +129,7 @@ def batch_create_enhanced_clips(
     face_tracker_instance: Optional[FaceTracker] = None,
     object_tracker_instance: Optional[ObjectTracker] = None,
     logger: logging.Logger = None,
+    custom_clip_themes: List[Dict] = None,
     **enhancement_options
 ) -> Tuple[List[str], List[int]]:
     """Create multiple enhanced clips with all features"""
@@ -163,20 +166,57 @@ def batch_create_enhanced_clips(
 
 
 
+import librosa
+import soundfile as sf
+from audio.audio_processing import extract_audio # Assuming extract_audio is available
+
 def detect_rhythm_and_beats(video_path: str) -> List[float]:
-    """Placeholder for rhythm and beat detection.
-    This would typically use audio analysis libraries like librosa to detect beats.
+    """Detects rhythm and beats in the video's audio using librosa.
     Returns a list of beat timestamps.
     """
-    print("Rhythm and beat detection is not yet implemented. Skipping this step.")
-    # In a real implementation, you would analyze the audio track of the video
-    # to detect beats or rhythm changes.
-    # Example:
-    # import librosa
-    # y, sr = librosa.load(audio_path)
-    # tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
-    # return librosa.frames_to_time(beats, sr=sr).tolist()
-    return []
+    print("Detecting rhythm and beats...")
+    audio_temp_path = get_temp_path("temp_audio_for_beats.wav")
+    try:
+        extract_audio(video_path, audio_temp_path)
+        y, sr = librosa.load(audio_temp_path)
+        tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+        beat_times = librosa.frames_to_time(beats, sr=sr).tolist()
+        print(f"Detected {len(beat_times)} beats.")
+        return beat_times
+    except Exception as e:
+        print(f"Failed to detect rhythm and beats: {e}")
+        return []
+
+def sync_cuts_with_beats(clips: List[Dict], beat_times: List[float]) -> List[Dict]:
+    """Adjusts clip start/end times to align with detected beats.
+    This is a simplified example and can be made more sophisticated.
+    """
+    print("Syncing cuts with beats...")
+    synced_clips = []
+    for clip in clips:
+        start = clip['start']
+        end = clip['end']
+        
+        # Find the closest beat to the clip's start
+        closest_start_beat = min(beat_times, key=lambda x: abs(x - start), default=start)
+        # Find the closest beat to the clip's end
+        closest_end_beat = min(beat_times, key=lambda x: abs(x - end), default=end)
+        
+        # Adjust clip to align with beats, ensuring minimum duration
+        new_start = closest_start_beat
+        new_end = closest_end_beat
+        
+        # Ensure the clip duration is still within reasonable bounds
+        if new_end - new_start < 5: # Example: ensure minimum 5 seconds
+            new_end = new_start + (end - start) # Revert to original duration if too short
+        
+        synced_clips.append({
+            'start': new_start,
+            'end': new_end,
+            'text': clip['text']
+        })
+    print("Cuts synced with beats.")
+    return synced_clips
 
 def batch_process_with_analysis(
     video_path: str,
@@ -210,7 +250,7 @@ def batch_process_with_analysis(
         'fps': video_analysis['fps']
     }
 
-    print("\n=== Step 3: Rhythm and Beat Detection ===")
+    # print("\n=== Step 3: Rhythm and Beat Detection ===")
     rhythm_info = detect_rhythm_and_beats(video_path)
     # This rhythm_info could then be passed to create_enhanced_individual_clip
     # to influence dynamic cuts or transitions.
@@ -242,7 +282,7 @@ def batch_process_with_analysis(
         output_dir = os.path.dirname(created_clips[0])
         save_processing_report(report, output_dir)
     
-    print("\n=== Processing Complete ===")
+    # print("\n=== Processing Complete ===")
     print(f"Total time: {processing_time:.1f}s")
     print(f"Success rate: {report['results']['success_rate']:.1f}%")
     print(f"Average time per clip: {report['performance_metrics']['avg_time_per_clip']:.1f}s")

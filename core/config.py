@@ -39,6 +39,9 @@ SMOOTHING_FACTOR = _config.get('smoothing_factor', 0.05)
 LLM_MAX_RETRIES = _config.get('llm_max_retries', 100)
 LLM_MIN_CLIPS_NEEDED = _config.get('llm_min_clips_needed', 1)
 
+# --- LLM Configuration from YAML ---
+LLM_CONFIG = _config.get('llm', {})
+
 # --- Personalization Settings ---
 CUSTOM_CLIP_THEMES = _config.get('custom_clip_themes', [])
 

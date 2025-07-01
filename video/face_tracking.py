@@ -13,9 +13,38 @@ class FaceTracker:
         self.face_mesh = mp_face_mesh.FaceMesh(max_num_faces=5, refine_landmarks=True, min_detection_confidence=0.5)
         self.tracked_faces = {}
         # Placeholder for a database to store character images for recognition
-        self.face_db = {}
+        self.face_db = self._load_face_db()
         # Placeholder for an image embedding model (e.g., ImageBind) for better recognition
-        # self.image_embedding_model = None
+        self.image_embedding_model = None # Initialize as None, to be loaded if needed
+
+    def _get_face_db_path(self):
+        return "./video/face_db.json"
+
+    def _load_face_db(self):
+        import json
+        try:
+            with open(self._get_face_db_path(), 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
+            print("Warning: face_db.json is corrupted. Starting with empty database.")
+            return {}
+
+    def _save_face_db(self):
+        import json
+        with open(self._get_face_db_path(), 'w') as f:
+            json.dump(self.face_db, f, indent=4)
+
+    def save_face_embedding(self, name: str, embedding: List[float]):
+        """Saves a face embedding to the database."""
+        self.face_db[name] = embedding
+        self._save_face_db()
+        print(f"Saved embedding for face: {name}")
+
+    def load_face_db(self) -> Dict[str, List[float]]:
+        """Loads the face database."""
+        return self.face_db
 
     def cleanup(self):
         """Release resources held by the face tracker."""
@@ -25,7 +54,7 @@ class FaceTracker:
         if self.face_mesh:
             self.face_mesh.close()
             self.face_mesh = None
-        print("Face detection and mesh models released.")
+        # print("Face detection and mesh models released.")
         
     def detect_faces_in_frame(self, frame: cv2.typing.MatLike) -> List[Dict]:
         """Detect faces and return detailed information"""
