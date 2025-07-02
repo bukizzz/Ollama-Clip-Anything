@@ -27,7 +27,7 @@ from core.prompt_parser import parse_user_prompt # Moved from inside main functi
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set FFMPEG_BINARY before any MoviePy imports
-os.environ["FFMPEG_BINARY"] = "/usr/local/bin/ffmpeg"
+os.environ["FFMPEG_BINARY"] = FFMPEG_PATH
 
 
 # TODO: Consider creating a dedicated 'tools/' directory for managing external models and libraries.
@@ -67,18 +67,13 @@ def main(args: dict):
             state_manager.delete_state_file()
             temp_manager.cleanup_temp_dir() # Clean up temp directory when --nocache is used
             state = None
+        elif args.get("retry") and state:
+            print("🔄 --retry flag detected. Attempting to resume previous session...")
         elif state:
-            if args.get("retry"):
-                print("🔄 --retry flag detected. Attempting to resume previous session...")
+            if state.get("failure_point"):
+                print(f"⚠️ Previous session failed at stage: {state.get("failure_point")}. Attempting to resume...")
             else:
-                resume_choice = input("Previous session failed. Resume? [y/n]: ").lower()
-                if resume_choice != 'y':
-                    print("🗑️ User declined resume. Deleting previous state and temporary files...")
-                    state_manager.delete_state_file()
-                    temp_manager.cleanup_temp_dir() # Clean up temp directory when resume is declined
-                    state = None
-                else:
-                    print("🔄 Resuming previous session...")
+                print("🔄 Resuming previous session...")
         
         if not state:
             state = {
@@ -113,38 +108,9 @@ def main(args: dict):
             ResultsSummaryAgent()
         ]
 
-        # Find the indices of VideoAnalysisAgent and VideoEditingAgent
-        video_analysis_agent_index = -1
-        video_editing_agent_index = -1
-        for i, agent in enumerate(pipeline_agents):
-            if isinstance(agent, VideoAnalysisAgent):
-                video_analysis_agent_index = i
-            elif isinstance(agent, VideoEditingAgent):
-                video_editing_agent_index = i
-
-        # Create sub-pipelines
-        agents_before_analysis = pipeline_agents[:video_analysis_agent_index]
-        agents_after_editing = pipeline_agents[video_editing_agent_index + 1:]
-
-        # Initialize AgentManager for the first part of the pipeline
-        pipeline_before_analysis = AgentManager(agents_before_analysis)
-        context = pipeline_before_analysis.run(state)
-
-        # Manually run VideoAnalysisAgent
-        video_analysis_agent = pipeline_agents[video_analysis_agent_index]
-        context = video_analysis_agent.execute(context)
-
-        # Extract face_tracker and object_tracker instances
-        face_tracker_instance = video_analysis_agent.face_tracker
-        object_tracker_instance = video_analysis_agent.object_tracker
-
-        # Manually run VideoEditingAgent
-        video_editing_agent = pipeline_agents[video_editing_agent_index]
-        context = video_editing_agent.execute(context, face_tracker_instance, object_tracker_instance)
-
-        # Initialize AgentManager for the last part of the pipeline
-        pipeline_after_editing = AgentManager(agents_after_editing)
-        context = pipeline_after_editing.run(context)
+        # Initialize AgentManager with the full pipeline
+        agent_manager = AgentManager(pipeline_agents)
+        context = agent_manager.run(state)
 
         # Parse user prompt if provided
         user_prompt_arg = args.get("user_prompt")
@@ -181,20 +147,7 @@ def main(args: dict):
         logging.info("     python -m spacy download en_core_web_sm")
         utils.print_system_info()
     finally:
-        if context:
-            processing_report = context.get("processing_report")
-            if processing_report and processing_report.get("failed_clip_numbers"):
-                print("\n⚠️ Some clips failed. State and temporary files preserved for resumption.")
-            elif context.get("current_stage") == "results_summary_complete":
-                print("\n✅ Pipeline completed successfully. Deleting state and temporary files.")
-                state_manager.delete_state_file()
-                temp_manager.cleanup_temp_dir() # Explicitly clean up temp directory on successful completion
-            elif context.get("failure_point"):
-                print("\n⚠️ Pipeline failed. State and temporary files preserved for resumption.")
-            else:
-                print("\n👋 \u001b[94mExiting application.\u001b[0m")
-        else:
-            print("\n👋 \u001b[94mExiting application.\u001b[0m")
+        state_manager.handle_pipeline_completion(context)
 
         
 

@@ -7,7 +7,6 @@ from ffmpeg_normalize import FFmpegNormalize
 import logging
 from llm import llm_interaction
 from core.gpu_manager import release_gpu_memory
-# import demucs.separate # Commented out due to dependency issues
 
 
 logger = logging.getLogger(__name__)
@@ -42,40 +41,6 @@ def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> N
         # Fallback to just copying the file if normalization fails
         subprocess.run(["cp", input_audio_path, output_audio_path], check=True)
         print("Falling back to copying original audio due to normalization failure.")
-
-def voice_separation(input_audio_path: str, output_vocals_path: str, output_music_path: str) -> None:
-    """
-    Separates voice from music using Demucs.
-    (Currently commented out due to dependency issues)
-    """
-    print("Skipping voice separation due to dependency issues.")
-    # Fallback to just copying the file if separation is skipped
-    subprocess.run(["cp", input_audio_path, output_vocals_path], check=True)
-    subprocess.run(["cp", input_audio_path, output_music_path], check=True)
-    # try:
-    #     demucs_output_dir = get_temp_path("demucs_output")
-    #     os.makedirs(demucs_output_dir, exist_ok=True)
-
-    #     demucs.separate.main(["-n", "htdemucs", "--two-stems=vocals", "-d", "cuda", input_audio_path, "-o", demucs_output_dir])
-        
-    #     original_filename_no_ext = os.path.splitext(os.path.basename(input_audio_path))[0]
-    #     separated_files_dir = os.path.join(demucs_output_dir, "htdemucs", original_filename_no_ext)
-        
-    #     separated_vocals_path = os.path.join(separated_files_dir, "vocals.wav")
-    #     separated_music_path = os.path.join(separated_files_dir, "no_vocals.wav")
-        
-    #     subprocess.run(["mv", separated_vocals_path, output_vocals_path], check=True)
-    #     subprocess.run(["mv", separated_music_path, output_music_path], check=True)
-        
-    #     shutil.rmtree(demucs_output_dir)
-        
-    #     print("✅ Voice separation complete.")
-    # except Exception as e:
-    #     print(f"⚠️ Voice separation failed: {e}")
-    #     subprocess.run(["cp", input_audio_path, output_vocals_path], check=True)
-    #     subprocess.run(["cp", input_audio_path, output_music_path], check=True)
-    #     print("Falling back to copying original audio due to separation failure.")
-
 
 def transcribe_video(video_path: str) -> list[dict]:
     """Transcribe video using faster-whisper with precise timing."""
@@ -123,12 +88,9 @@ def transcribe_video(video_path: str) -> list[dict]:
         raw_audio_path = get_temp_path("temp_audio_raw.wav")
         normalized_audio_path = get_temp_path("temp_audio_normalized.wav")
         vocals_audio_path = get_temp_path("temp_audio_vocals.wav")
-        # music_audio_path = get_temp_path("temp_audio_music.wav") # Removed unused variable
 
         extract_audio(video_path, raw_audio_path)
         normalize_audio_loudness(raw_audio_path, normalized_audio_path)
-        # voice_separation(normalized_audio_path, vocals_audio_path, music_audio_path) # Commented out due to dependency issues
-        # For now, use the normalized audio directly for transcription if voice separation is skipped
         vocals_audio_path = normalized_audio_path 
 
         print(f"Running faster-whisper transcription on {device}...")

@@ -28,3 +28,4 @@ video/face_db.json
 # Project configuration
 pyproject.toml
 b_roll_assets/
+REPORT.md

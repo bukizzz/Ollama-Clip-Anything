@@ -1,16 +1,16 @@
 from agents.base_agent import Agent
 from typing import Dict, Any
 from analysis import analysis_and_reporting
-from video.face_tracking import FaceTracker
-from video.object_tracking import ObjectTracker
+from video.tracking_manager import TrackingManager
 
 class VideoAnalysisAgent(Agent):
     """Agent responsible for performing enhanced video analysis and optimizing processing settings."""
 
     def __init__(self):
         super().__init__("VideoAnalysisAgent")
-        self.face_tracker = FaceTracker()
-        self.object_tracker = ObjectTracker()
+        tracking_manager = TrackingManager()
+        self.face_tracker = tracking_manager.get_face_tracker()
+        self.object_tracker = tracking_manager.get_object_tracker()
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         input_source = context.get("input_source") # Use input_source
@@ -28,9 +28,7 @@ class VideoAnalysisAgent(Agent):
             assert isinstance(input_source, str), "Input source must be a string path."
             
             video_analysis = analysis_and_reporting.analyze_video_content(
-                input_source, # input_source is now guaranteed to be str
-                face_tracker=self.face_tracker,
-                object_tracker=self.object_tracker
+                input_source # input_source is now guaranteed to be str
             )
             processing_settings = analysis_and_reporting.optimize_processing_settings(video_analysis)
             context.update({

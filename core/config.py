@@ -22,7 +22,7 @@ B_ROLL_ASSETS_DIR = _config.get('b_roll_assets_dir', "b_roll_assets")
 
 # --- Model Settings ---
 WHISPER_MODEL = _config.get('whisper_model', "base")
-LLM_MODEL = _config.get('llm_model', "qwen2.5-coder:7b")
+LLM_MODEL = _config.get('llm_model', "deepseek-coder:6.7b")
 IMAGE_RECOGNITION_MODEL = _config.get('image_recognition_model', "qwen2.5vl:7b")
 
 # --- Subtitle Settings ---

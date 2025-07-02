@@ -26,6 +26,7 @@ class AgentManager:
             agent_name_snake_case = ''.join(['_' + i.lower() if i.isupper() else i for i in agent.name]).lstrip('_')
             
             # Check if the agent should be executed based on config and current stage
+            print(f"DEBUG: Current stage before {agent.name}: {context.get("current_stage")}")
             if AGENT_CONFIG.get(agent_name_snake_case, True) and \
                context.get("current_stage") != f"{agent_name_snake_case}_complete":
                 

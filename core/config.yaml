@@ -53,7 +53,7 @@ custom_clip_themes: # Placeholder for custom clip themes
 
 # Encoding settings
 video_encoder: "h264_nvenc"
-ffmpeg_path: "/usr/local/bin/ffmpeg"
+# ffmpeg_path: "/usr/local/bin/ffmpeg" # Uncomment and set if FFmpeg is not in system PATH
 ffmpeg_global_params:
   - '-pix_fmt'
   - 'yuv420p'

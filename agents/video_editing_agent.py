@@ -1,6 +1,7 @@
 from agents.base_agent import Agent
 from typing import Dict, Any
 from video import video_editing
+from video.tracking_manager import TrackingManager
 
 
 class VideoEditingAgent(Agent):
@@ -8,8 +9,11 @@ class VideoEditingAgent(Agent):
 
     def __init__(self):
         super().__init__("VideoEditingAgent")
+        tracking_manager = TrackingManager()
+        self.face_tracker = tracking_manager.get_face_tracker()
+        self.object_tracker = tracking_manager.get_object_tracker()
 
-    def execute(self, context: Dict[str, Any], face_tracker_instance: Any, object_tracker_instance: Any) -> Dict[str, Any]:
+    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         processed_video_path = context.get("processed_video_path")
         clips = context.get("clips")
         transcription = context.get("transcription")
@@ -43,29 +47,19 @@ class VideoEditingAgent(Agent):
         })
 
         print(f"\n✂️ \u001b[94m5. Creating {len(clips)} enhanced video clips...\u001b[0m")
-        if current_stage == "video_analysis_complete":
-            created_clips, processing_report = video_editing.batch_process_with_analysis(
-                processed_video_path, 
-                clips, 
-                transcription, 
-                video_info=video_info, # Pass video_info
-                processing_settings=processing_settings, # Pass processing_settings
-                video_analysis=video_analysis, # Pass video_analysis
-                face_tracker_instance=face_tracker_instance, 
-                object_tracker_instance=object_tracker_instance 
-            )
-            context.update({
-                "created_clips": created_clips,
-                "processing_report": processing_report,
-                "current_stage": "video_editing_complete"
-            })
-        else:
-            print("⏩ Skipping video editing. Loaded from state.")
-            # If skipping, ensure context is updated with potentially loaded values
-            context.update({
-                "created_clips": created_clips,
-                "processing_report": processing_report,
-                "current_stage": "video_editing_complete" # Still mark as complete if skipped
-            })
+        created_clips, processing_report = video_editing.batch_process_with_analysis(
+            processed_video_path, 
+            clips, 
+            transcription, 
+            video_info=video_info, # Pass video_info
+            processing_settings=processing_settings, # Pass processing_settings
+            video_analysis=video_analysis, # Pass video_analysis
+             
+        )
+        context.update({
+            "created_clips": created_clips,
+            "processing_report": processing_report,
+            "current_stage": "video_editing_complete"
+        })
 
         return context

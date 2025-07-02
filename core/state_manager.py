@@ -39,3 +39,20 @@ def delete_state_file():
     state_file = get_state_file_path()
     if os.path.exists(state_file):
         os.remove(state_file)
+
+def handle_pipeline_completion(context: dict):
+    """Handles state and temporary files based on pipeline completion status."""
+    if context:
+        processing_report = context.get("processing_report")
+        if processing_report and processing_report.get("failed_clip_numbers"):
+            print("\n⚠️ Some clips failed. State and temporary files preserved for resumption.")
+        elif context.get("current_stage") == "results_summary_complete":
+            print("\n✅ Pipeline completed successfully. Deleting state and temporary files.")
+            delete_state_file()
+            cleanup() # Explicitly clean up temp directory on successful completion
+        elif context.get("failure_point"):
+            print("\n⚠️ Pipeline failed. State and temporary files preserved for resumption.")
+        else:
+            print("\n👋 \u001b[94mExiting application.\u001b[0m")
+    else:
+        print("\n👋 \u001b[94mExiting application.\u001b[0m")

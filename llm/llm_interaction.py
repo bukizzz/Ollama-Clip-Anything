@@ -43,30 +43,16 @@ def clean_numerical_value(text: str) -> float:
 
 def cleanup():
     """
-    Attempts to unload the Ollama models from the server and clears associated GPU memory.
+    Attempts to clear GPU memory and provides guidance for Ollama model unloading.
     """
-    models_to_stop = [LLM_MODEL, IMAGE_RECOGNITION_MODEL]
-    for model_name in models_to_stop:
-        print(f"🧹 Attempting to unload Ollama model '{model_name}' from server and clear GPU memory...")
-        try:
-            # Using 'ollama stop {model name}' as per user feedback.
-            # This command is intended to stop the specific model.
-            unload_command = ["ollama", "stop", model_name] 
-            result = subprocess.run(unload_command, capture_output=True, text=True, check=False)
-            if result.returncode == 0:
-                print(f"✅ Ollama model '{model_name}' successfully stopped/unloaded.")
-            else:
-                print(f"⚠️ Failed to stop/unload Ollama model '{model_name}': {result.stderr}")
-                print("   ℹ️ (This might happen if the model was not loaded or 'ollama stop' behaves differently in your Ollama CLI version. If issues persist, consider manually stopping Ollama or restarting your system.)")
-        except Exception as e:
-            print(f"⚠️ Could not fully clean up LLM resources for model '{model_name}': {e}")
-
+    print("🧹 Attempting to clear GPU memory...")
     # Clear PyTorch CUDA cache and run garbage collector
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print("✅ PyTorch CUDA cache cleared.")
     gc.collect()
     print("✅ Python garbage collector run.")
+    print("ℹ️ To ensure Ollama models are fully unloaded, consider restarting the Ollama server or running 'ollama unload' manually if issues persist.")
 
 def llm_pass(model: str, messages: list[dict]) -> str:
     """Send messages to Ollama model and return response content."""
@@ -162,52 +148,24 @@ def sanitize_segments(segments: List[Dict[str, Any]], max_duration: Optional[flo
     return cleaned
 
 
-def robust_llm_json_extraction(system_prompt: str, user_prompt: str, validation_schema: Optional[Dict[str, Any]] = None) -> Any:
+def robust_llm_json_extraction(system_prompt: str, user_prompt: str) -> Any:
     """
-    A robust, three-pass approach for extracting JSON data from an LLM.
+    A robust, single-pass approach for extracting JSON data from an LLM.
     """
-    print("🔄 Pass 1: Initial data extraction...")
-    pass1_output = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
+    print("🔄 Attempting single-pass JSON extraction...")
+    response_content = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
     ])
 
-    print("🔄 Pass 2: Converting to JSON...")
-    pass2_prompt = f"""
-Convert the following information into a clean JSON format.
-If the request is for a list, provide a JSON array of objects.
-Example: [{{"key": "value"}}]
-Original information: {pass1_output}
-Return ONLY the JSON.
-"""
-    pass2_output = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
-        {"role": "system", "content": "You are a JSON formatter."},
-        {"role": "user", "content": pass2_prompt.strip()}
-    ])
-
-    print("🔄 Pass 3: Final validation...")
-    pass3_prompt = f"""
-Validate and clean this JSON. Fix syntax and ensure it conforms to the requested structure.
-Input JSON: {pass2_output}
-Return the cleaned, valid JSON only.
-"""
-    if validation_schema:
-        pass3_prompt += f"\nValidation schema: {json.dumps(validation_schema)}"
-
-    pass3_output = llm_pass(LLM_CONFIG.get('model', LLM_MODEL), [
-        {"role": "system", "content": "You are a JSON validator."},
-        {"role": "user", "content": pass3_prompt.strip()}
-    ])
-
     try:
-        return extract_json_from_text(pass3_output)
+        return extract_json_from_text(response_content)
     except Exception as e:
-        print(f"❌ Three-pass extraction failed at final parsing: {e}")
+        print(f"❌ Single-pass extraction failed: {e}")
         raise
 
-
-def three_pass_llm_extraction(transcript: List[Dict[str, Any]], user_prompt: Optional[str] = None, b_roll_data: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-    """Use a three-pass approach for robust LLM-based clip extraction."""
+def get_clips_from_llm(transcript: List[Dict[str, Any]], user_prompt: Optional[str] = None, b_roll_data: Optional[List[Dict[str, Any]]] = None, retry_delay=2) -> List[Dict[str, Any]]:
+    """Get clips with retry logic using the single-pass LLM approach."""
     min_dur, max_dur = CLIP_DURATION_RANGE
     total_duration = transcript[-1]['end'] if transcript else 0
 
@@ -218,44 +176,34 @@ def three_pass_llm_extraction(transcript: List[Dict[str, Any]], user_prompt: Opt
         "text": seg['text'][:150]
     } for i, seg in enumerate(transcript)]
 
-    system_prompt = "You are an expert video editor."
+    system_prompt = "You are an expert video editor. Your task is to select engaging clips from a video transcript. Provide the output as a JSON array of objects, where each object represents a clip. Each clip object must have 'start' (float), 'end' (float), 'text' (string), 'split_screen' (boolean), and optionally 'b_roll_image' (string, path to image). Ensure 'start' and 'end' values are raw float numbers in seconds, without any additional words or units. Focus on engaging moments and a duration between " + str(min_dur) + "-" + str(max_dur) + " seconds. Prioritize segments that represent a complete thought, story, or a natural conversational turn. Avoid cutting mid-sentence or mid-word. Aim to identify as many distinct, valid clips as possible, even if there are slight overlaps or they are not perfectly 'complete thoughts' – these will be refined in later steps. Return ONLY the JSON array."
+
     main_prompt = f"""
-You are a video editor selecting up to 10 engaging clips. Analyze this transcript.
-For each segment, provide start time, end time, a brief description, a boolean field `split_screen` indicating if two distinct speakers are present and actively conversing in that segment, and an optional `b_roll_image` field (string, path to image) if a suitable B-roll image from the provided list can enhance the segment.
-Focus on engaging moments and a duration between {min_dur}-{max_dur} seconds. Prioritize segments that represent a complete thought, story, or a natural conversational turn. Avoid cutting mid-sentence or mid-word. Aim to identify as many distinct, valid clips as possible, even if there are slight overlaps or they are not perfectly 'complete thoughts' – these will be refined in later steps.
+Analyze this transcript and select up to 10 engaging clips.
 Total duration: {total_duration:.1f} seconds.
 # Transcript data: {json.dumps(simplified_transcript[:min(50, len(simplified_transcript))], indent=1)}
 
 Available B-roll images and their descriptions:
 {json.dumps(b_roll_data, indent=2) if b_roll_data else "No B-roll images available."}
 
-Provide selections as a numbered list, with each item clearly indicating 'Start:', 'End:', 'Description:', 'Split_Screen:', and optionally 'B_roll_image:'.
-Ensure 'Start' and 'End' values are raw float numbers in seconds, without any additional words or units (e.g., "123.45", not "123.45 seconds").
 """
     if user_prompt:
         main_prompt += f"\n\nUser's specific request: {user_prompt}"
 
-    segments = robust_llm_json_extraction(system_prompt, main_prompt)
-    if not isinstance(segments, list):
-        raise ValueError("LLM did not return a list of segments")
-    cleaned_segments = sanitize_segments(segments, total_duration)
-    print(f"✅ Three-pass extraction yielded {len(cleaned_segments)} valid clips")
-    return cleaned_segments
-
-
-def get_clips_with_retry(transcript: List[Dict[str, Any]], user_prompt: Optional[str] = None, b_roll_data: Optional[List[Dict[str, Any]]] = None, retry_delay=2) -> List[Dict[str, Any]]:
-    """Get clips with retry logic using the three-pass LLM approach."""
     for attempt in range(LLM_MAX_RETRIES):
         try:
             print(f"🧠 Attempting LLM clip selection ({attempt + 1}/{LLM_MAX_RETRIES})...")
-            clips = three_pass_llm_extraction(transcript, user_prompt, b_roll_data)
-            if len(clips) >= LLM_MIN_CLIPS_NEEDED:
-                print(f"✅ Successfully extracted {len(clips)} clips")
+            segments = robust_llm_json_extraction(system_prompt, main_prompt)
+            if not isinstance(segments, list):
+                raise ValueError("LLM did not return a list of segments")
+            cleaned_segments = sanitize_segments(segments, total_duration)
+            if len(cleaned_segments) >= LLM_MIN_CLIPS_NEEDED:
+                print(f"✅ Successfully extracted {len(cleaned_segments)} valid clips")
                 # Clean up GPU memory after a successful operation
                 release_gpu_memory()
-                return clips[:10]
+                return cleaned_segments[:10]
             else:
-                print(f"⚠️ Only got {len(clips)} valid clips, need at least 1.")
+                print(f"⚠️ Only got {len(cleaned_segments)} valid clips, need at least 1.")
         except Exception as e:
             print(f"❌ \033[91mAttempt {attempt + 1} failed: {e}\033[0m")
             if attempt < LLM_MAX_RETRIES - 1:

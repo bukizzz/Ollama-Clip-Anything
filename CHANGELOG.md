@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1] - 2025-07-02
+
+### Added
+
+-   **Unit Testing Framework:**
+    -   Introduced a `tests/` directory with `pytest` configuration (`pytest.ini`) and an example unit test (`test_utils.py`) for `core/utils.py`. This marks a significant step towards improving code quality and maintainability.
+-   **Centralized Tracking Management:**
+    -   New module `video/tracking_manager.py` introduced to centralize the instantiation and management of `FaceTracker` and `ObjectTracker` instances. This ensures that a single instance of each tracker is used across the application, improving efficiency and consistency.
+    -   `VideoAnalysisAgent` and `VideoEditingAgent` now obtain tracker instances from `TrackingManager` instead of creating them directly or receiving them as arguments.
+    -   `analysis/analysis_and_reporting.py` also uses `TrackingManager` for obtaining trackers during video content analysis.
+-   **Refactored Clip Enhancement Logic:**
+    -   The core logic for creating individual enhanced clips has been extracted from `video/video_editing.py` into a new dedicated module `video/clip_enhancer.py`. This improves modularity and separation of concerns.
+-   **Enhanced State Management:**
+    -   A new function `handle_pipeline_completion` has been added to `core/state_manager.py` to centralize the logic for managing state files and temporary directories based on the pipeline's success or failure.
+-   **Automated Model Downloads:**
+    -   `tools/download_models.py` now includes actual `ollama pull` commands for `LLM_MODEL` and `IMAGE_RECOGNITION_MODEL`, making model setup more automated.
+
+
+### Changed
+
+-   **LLM Interaction:**
+    -   The `llm/llm_interaction.py` module has been refactored to use a more streamlined, single-pass JSON extraction approach (`robust_llm_json_extraction`) instead of the previous three-pass method, aiming for improved efficiency while maintaining robustness.
+    -   `get_clips_with_retry` has been renamed to `get_clips_from_llm` to reflect the updated extraction strategy.
+    -   The `cleanup()` function in `llm/llm_interaction.py` no longer attempts to directly `ollama stop` models, but instead focuses on clearing PyTorch GPU memory and provides clear guidance to the user for manual Ollama model unloading or server restart if needed.
+-   **Agent and Pipeline Logic:**
+    -   `main.py` no longer manually orchestrates `VideoAnalysisAgent` and `VideoEditingAgent`; the `AgentManager` now handles the full pipeline execution.
+    -   `main.py` now utilizes `state_manager.handle_pipeline_completion` in its `finally` block, simplifying the main application flow.
+    -   `VideoAnalysisAgent` and `VideoEditingAgent` no longer accept `face_tracker_instance` and `object_tracker_instance` as arguments, as they now obtain them from `TrackingManager`.
+    -   `analysis/analysis_and_reporting.py` no longer takes `face_tracker` and `object_tracker` as arguments for `analyze_video_content`.
+-   **Configuration:**
+    -   The default `LLM_MODEL` in `core/config.py` and `core/config.yaml` has been updated from `qwen2.5-coder:7b` to `deepseek-coder:6.7b`.
+    -   The `ffmpeg_path` entry in `core/config.yaml` is now commented out by default, with a note to uncomment and set if FFmpeg is not in the system PATH.
+    -   `main.py` now uses `os.environ["FFMPEG_BINARY"] = FFMPEG_PATH` for setting the FFmpeg binary path, ensuring consistency with the configured path.
+-   **Dependencies:**
+    -   `pyproject.toml` and `requirements.txt` updated to reflect the new dependencies and changes in existing ones.
+    -   `librosa` version is unpinned in `requirements.txt`.
+    -   `mediapipe` version is updated in `requirements.txt`.
+    -   `typer` and `psutil` are added to `pyproject.toml` and `requirements.txt`.
+-   **Video Editing:**
+    -   `video/video_editing.py` now imports `create_enhanced_individual_clip` from `video/clip_enhancer.py`.
+    -   `batch_create_enhanced_clips` in `video/video_editing.py` now takes `tracking_manager` and `output_dir` as arguments.
+    -   `batch_process_with_analysis` in `video/video_editing.py` now instantiates `TrackingManager`.
+
+### Removed
+
+-   **Three-Pass LLM Extraction:**
+    -   The `three_pass_llm_extraction` function has been removed from `llm/llm_interaction.py` in favor of the new single-pass approach.
+
 ## [4.0.9.2] - 2025-07-02
 
 ### Added

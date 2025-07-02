@@ -21,7 +21,7 @@ class LLMSelectionAgent(Agent):
             
             user_prompt = context.get("user_prompt")
             b_roll_data = context.get("b_roll_data")
-            clips = llm_interaction.get_clips_with_retry(transcription, user_prompt=user_prompt, b_roll_data=b_roll_data)
+            clips = llm_interaction.get_clips_from_llm(transcription, user_prompt=user_prompt, b_roll_data=b_roll_data)
             context.update({
                 "clips": clips,
                 "current_stage": "llm_selection_complete" # Update stage after successful clip selection

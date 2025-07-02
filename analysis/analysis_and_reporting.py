@@ -1,14 +1,12 @@
 import os
 import json
 import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 import cv2
 from moviepy.editor import VideoFileClip
+from video.tracking_manager import TrackingManager
 
-from video.face_tracking import FaceTracker
-from video.object_tracking import ObjectTracker
-
-def analyze_video_content(video_path: str, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None) -> Dict:
+def analyze_video_content(video_path: str) -> Dict:
     """Analyze video content for optimal processing"""
     try:
         cap = cv2.VideoCapture(video_path)
@@ -27,9 +25,10 @@ def analyze_video_content(video_path: str, face_tracker: Optional[FaceTracker] =
         sample_interval = max(1, int(fps * 30))  # Every 30 seconds
         max_samples = min(10, frame_count // sample_interval)
         
-        # Use provided trackers or create new ones
-        _face_tracker = face_tracker if face_tracker else FaceTracker()
-        _object_tracker = object_tracker if object_tracker else ObjectTracker()
+        # Use TrackingManager to get trackers
+        tracking_manager = TrackingManager()
+        _face_tracker = tracking_manager.get_face_tracker()
+        _object_tracker = tracking_manager.get_object_tracker()
         
         for i in range(0, frame_count, sample_interval):
             if len(sample_frames) >= max_samples:
