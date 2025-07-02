@@ -1,22 +1,40 @@
 # core/config.yaml
 # Basic configurable inputs for Ollama-Clip-Anything
 
+# Directory settings
+temp_dir: "temp_processing"
+state_file: ".temp_clips.json"
+output_dir: "videos"
+clip_prefix: "clip"
+b_roll_assets_dir: "b_roll_assets"
+
+# Model settings
+whisper_model: "base"
+llm_model: "qwen2.5-coder:7b"
+
 # Subtitle settings
 subtitle_font_size: 28
 subtitle_font_color: "FFFFFF"
 subtitle_outline_color: "000000"
 subtitle_shadow_color: "000000"
+subtitle_font_families: ['Impact', 'Arial Black', 'Bebas Neue']
+subtitle_background_color: 'FFA500'
+subtitle_border_radius: 10
+highlight_font_color: '00FFFF'
+highlight_outline_color: '000000'
 
 # Video processing settings
 clip_duration_min: 45
 clip_duration_max: 75
-smoothing_factor: 0.05
+clip_validation_min: 30
+clip_validation_max: 90
+smoothing_factor: 0.1
 
 # LLM settings
 llm_max_retries: 100
 llm_min_clips_needed: 1
 
-# LLM settings
+# LLM configuration
 llm:
   min_model: "MiniCPM"
   image_model: "ImageBind"
@@ -33,3 +51,43 @@ custom_clip_themes: # Placeholder for custom clip themes
       two_face_detection: false
       # Add more theme-specific settings here
 
+# Encoding settings
+video_encoder: "h264_nvenc"
+ffmpeg_path: "/usr/local/bin/ffmpeg"
+ffmpeg_global_params:
+  - '-pix_fmt'
+  - 'yuv420p'
+  - '-movflags'
+  - '+faststart'
+ffmpeg_encoder_params:
+  h264_nvenc:
+    - '-preset'
+    - 'p5'
+    - '-tune'
+    - 'hq'
+    - '-rc'
+    - 'vbr_hq'
+    - '-cq'
+    - '20'
+  hevc_nvenc:
+    - '-preset'
+    - 'p5'
+    - '-tune'
+    - 'hq'
+  av1_nvenc:
+    - '-preset'
+    - 'p5'
+    - '-tune'
+    - 'hq'
+
+# Agent Configuration
+agents:
+  video_input_agent: true
+  storyboarding_agent: true
+  content_alignment_agent: true
+  audio_transcription_agent: true
+  broll_analysis_agent: true
+  llm_selection_agent: true
+  video_analysis_agent: true
+  video_editing_agent: true
+  results_summary_agent: true

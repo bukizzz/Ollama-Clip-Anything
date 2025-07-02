@@ -23,4 +23,4 @@ class Agent(ABC):
         pass
 
     def __str__(self):
-        return f"Agent: {self.name}"
+        return f"🤖 Agent: {self.name}"

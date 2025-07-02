@@ -9,7 +9,7 @@ pytubefix
 ollama==0.2.0
 opencv-python==4.9.0.80
 numpy==1.26.4
-spacy==3.7.4
+spacy
 mediapipe==0.10.13
 scikit-learn==1.2.2
 librosa
@@ -31,3 +31,4 @@ python-dotenv==0.19.0
 ipython==8.0.0
 ruff==0.5.0
 pyyaml==6.0.1
+typer

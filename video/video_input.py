@@ -16,17 +16,13 @@ def get_video_input(video_path: str = None, youtube_url: str = None, youtube_qua
             raise FileNotFoundError(f"Local video file not found: {video_path}")
         if not video_path.lower().endswith(".mp4"):
             raise ValueError("Local video file must be an .mp4")
-        print(f"Using local video: {video_path}")
+        print(f"📁 Using local video: {video_path}")
         return video_path
     elif youtube_url:
-        print(f"Downloading YouTube video from: {youtube_url}")
+        print(f"⬇️ Downloading YouTube video from: {youtube_url}")
         return download_youtube_video(youtube_url, youtube_quality)
     else:
         raise ValueError("Either --video_path or --youtube_url must be provided.")
-
-
-
-
 
 
 def choose_input_video() -> str:
@@ -34,13 +30,13 @@ def choose_input_video() -> str:
     while True:
         user_input = input("Enter path to local MP4 file or YouTube URL: ").strip()
         if user_input.startswith("http") or user_input.startswith("www."):
-            print(f"Detected YouTube URL: {user_input}")
+            print(f"🔗 Detected YouTube URL: {user_input}")
             return download_youtube_video(user_input)
         elif os.path.isfile(user_input):
-            print(f"Detected local file: {user_input}")
+            print(f"📁 Detected local file: {user_input}")
             return get_video_input(video_path=user_input)
         else:
-            print("Invalid input. Please enter a valid local MP4 file path or a YouTube URL.")
+            print("❌ Invalid input. Please enter a valid local MP4 file path or a YouTube URL.")
 
 
 def download_youtube_video(url: str, quality_choice: int = None) -> str:
@@ -53,19 +49,19 @@ def download_youtube_video(url: str, quality_choice: int = None) -> str:
     if not video_streams:
         raise RuntimeError("No compatible MP4 streams found.")
 
-    print(f"\nTitle: {yt.title}")
-    print("Available video streams:")
+    print(f"\n🎬 \033[94mTitle: {yt.title}\033[0m")
+    print("📺 Available video streams:")
     for i, stream in enumerate(video_streams):
         stream_type = "Progressive" if stream.is_progressive else "Adaptive"
         audio_info = "Audio included" if stream.includes_audio_track else "Video only"
         size_mb = stream.filesize / (1024 * 1024) if stream.filesize else "Unknown"
         size_str = f"{size_mb:.2f} MB" if isinstance(size_mb, float) else size_mb
-        print(f"{i}: {stream.resolution} | {stream.fps}fps | {stream_type} | {audio_info} | {size_str}")
+        print(f"  {i}: {stream.resolution} | {stream.fps}fps | {stream_type} | {audio_info} | {size_str}")
 
     if quality_choice is not None:
         if 0 <= quality_choice < len(video_streams):
             selected_stream = video_streams[quality_choice]
-            print(f"Selected stream: {quality_choice} - {selected_stream.resolution}")
+            print(f"✅ Selected stream: {quality_choice} - {selected_stream.resolution}")
         else:
             raise ValueError(f"Invalid quality choice: {quality_choice}. Please choose a number within the displayed range.")
     else:
@@ -76,19 +72,19 @@ def download_youtube_video(url: str, quality_choice: int = None) -> str:
                     selected_stream = video_streams[choice]
                     break
                 else:
-                    print("Invalid choice. Please enter a number within the displayed range.")
+                    print("❌ Invalid choice. Please enter a number within the displayed range.")
             except ValueError:
-                print("Invalid input. Please enter a number.")
+                print("❌ Invalid input. Please enter a number.")
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
-    print(f"Downloading: {yt.title}")
+    print(f"⬇️ Downloading: {yt.title}")
 
     if selected_stream.is_progressive:
         output_path = selected_stream.download(output_path=OUTPUT_DIR, filename_prefix="yt_")
     else:
-        print("Downloading video-only stream and best audio separately...")
+        print("⬇️ Downloading video-only stream and best audio separately...")
         video_path = selected_stream.download(output_path=get_temp_path(""), filename_prefix="yt_video_")
         
         audio_stream = yt.streams.filter(only_audio=True, file_extension='mp4').order_by('abr').desc().first()
@@ -104,7 +100,7 @@ def download_youtube_video(url: str, quality_choice: int = None) -> str:
                 "ffmpeg", "-y", "-i", video_path, "-i", audio_path,
                 "-c", "copy", "-map", "0:v:0", "-map", "1:a:0", output_path
             ]
-            print("Merging video and audio...")
+            print("➕ Merging video and audio...")
             result = subprocess.run(merge_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 # print("FFmpeg merge failed. FFmpeg stderr:\n", result.stderr)
@@ -113,8 +109,8 @@ def download_youtube_video(url: str, quality_choice: int = None) -> str:
                 os.remove(video_path)
                 os.remove(audio_path)
         else:
-            print("No audio stream found, using video-only file.")
+            print("🔇 No audio stream found, using video-only file.")
             output_path = video_path
     
-    print(f"Saved to: {output_path}")
+    print(f"💾 Saved to: {output_path}")
     return output_path

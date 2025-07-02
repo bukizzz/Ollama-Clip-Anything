@@ -55,7 +55,7 @@ class ContentAlignmentAgent(Agent):
             context["content_alignment_data"] = alignment_results
             print("✅ Content alignment by LLM complete.")
         except Exception as e:
-            print(f"Failed to perform content alignment with LLM: {e}")
+            print(f"❌ \033[91mFailed to perform content alignment with LLM: {e}\033[0m")
             context["content_alignment_data"] = "Error during alignment."
 
         return context

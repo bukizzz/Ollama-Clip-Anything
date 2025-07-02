@@ -1,4 +1,3 @@
-
 from agents.base_agent import Agent
 from typing import Dict, Any
 from llm import llm_interaction
@@ -11,16 +10,21 @@ class LLMSelectionAgent(Agent):
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         transcription = context.get("transcription")
-        current_stage = context.get("current_stage")
+        # current_stage = context.get("current_stage") # Not needed for this logic
         clips = context.get("clips")
 
-        print("\n3. Selecting coherent clips using LLM...")
-        if current_stage == "transcription_complete":
+        print("\n🧠 \u001b[94m3. Selecting coherent clips using LLM...\u001b[0m")
+        
+        if clips is None: # Only select clips if not already loaded from state
+            if transcription is None:
+                raise RuntimeError("Transcription data is missing from context. Cannot select clips.")
+            
             user_prompt = context.get("user_prompt")
-            clips = llm_interaction.get_clips_with_retry(transcription, user_prompt=user_prompt)
+            b_roll_data = context.get("b_roll_data")
+            clips = llm_interaction.get_clips_with_retry(transcription, user_prompt=user_prompt, b_roll_data=b_roll_data)
             context.update({
                 "clips": clips,
-                "current_stage": "llm_selection_complete"
+                "current_stage": "llm_selection_complete" # Update stage after successful clip selection
             })
             
         else:

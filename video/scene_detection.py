@@ -35,7 +35,7 @@ class SceneDetector:
                     
                     if correlation < (1 - self.threshold):
                         scene_changes.append(timestamp)
-                        # print(f"Scene change detected at {timestamp:.2f}s (correlation: {correlation:.3f})")
+                        print(f"🎬 \033[96mScene change detected at {timestamp:.2f}s (correlation: {correlation:.3f})\033[0m")
                 
                 self.prev_hist = hist
             

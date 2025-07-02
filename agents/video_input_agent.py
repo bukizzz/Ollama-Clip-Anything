@@ -28,7 +28,7 @@ class VideoInputAgent(Agent):
             else:
                 input_video = video_input.choose_input_video()
             
-            print("\n🔍 Analyzing input video...")
+            print("\n🔍 [94mAnalyzing input video...[0m")
             video_info, processed_video_path = utils.get_video_info(input_video)
             
             context.update({

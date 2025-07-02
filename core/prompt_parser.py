@@ -1,10 +1,9 @@
 from typing import Dict, Any
 from llm import llm_interaction
-import json
 
 def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
     """Parses a user's natural language prompt into structured parameters using an LLM."""
-    print(f"Parsing user prompt: {user_prompt}")
+    print(f"📝 Parsing user prompt: {user_prompt}")
 
     if not user_prompt:
         return {
@@ -37,7 +36,7 @@ def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
         print("✅ User prompt parsed by LLM.")
         return parsed_data
     except Exception as e:
-        print(f"Failed to parse user prompt with LLM: {e}")
+        print(f"❌ \033[91mFailed to parse user prompt with LLM: {e}\033[0m")
         return {
             "theme": "default",
             "characters": [],

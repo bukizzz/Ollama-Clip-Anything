@@ -8,5 +8,5 @@ class FFMPEGCommandLogger(logging.Logger):
     def info(self, msg, *args, **kwargs):
         if "MoviePy: running " in msg:
             self.command = msg.replace("MoviePy: running ", "").strip()
-            print(f"FFMPEG COMMAND: {self.command}")
+            print(f"▶️ \033[94mFFMPEG COMMAND: {self.command}\033[0m")
         super().info(msg, *args, **kwargs)

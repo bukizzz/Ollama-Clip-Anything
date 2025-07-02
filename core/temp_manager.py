@@ -17,9 +17,9 @@ def cleanup_temp_dir():
     if os.path.exists(TEMP_DIR):
         try:
             shutil.rmtree(TEMP_DIR)
-            print(f"Cleaned up temporary directory: {TEMP_DIR}")
+            print(f"🧹 Cleaned up temporary directory: {TEMP_DIR}")
         except Exception as e:
-            print(f"Warning: Could not fully clean up temp directory: {e}")
+            print(f"⚠️ \033[93mWarning: Could not fully clean up temp directory: {e}\033[0m")
 
 def get_temp_path(filename: str) -> str:
     """Get a full path for a file inside the temporary directory."""

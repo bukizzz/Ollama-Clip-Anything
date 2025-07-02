@@ -1,23 +1,37 @@
-
 from agents.base_agent import Agent
 from typing import Dict, Any
 from analysis import analysis_and_reporting
+from video.face_tracking import FaceTracker
+from video.object_tracking import ObjectTracker
 
 class VideoAnalysisAgent(Agent):
     """Agent responsible for performing enhanced video analysis and optimizing processing settings."""
 
     def __init__(self):
         super().__init__("VideoAnalysisAgent")
+        self.face_tracker = FaceTracker()
+        self.object_tracker = ObjectTracker()
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        processed_video_path = context.get("processed_video_path")
+        input_source = context.get("input_source") # Use input_source
         current_stage = context.get("current_stage")
         video_analysis = context.get("video_analysis")
 
-        print("\n4. Performing enhanced video analysis...")
-        if current_stage == "llm_selection_complete":
-            # This stage doesn't produce critical intermediate files for resumption, so no state update needed here.
-            video_analysis = analysis_and_reporting.analyze_video_content(processed_video_path)
+        print("\n📊 \u001b[94m4. Performing enhanced video analysis...\u001b[0m")
+        
+        # Only perform analysis if it hasn't been done or if a fresh run is needed
+        if video_analysis is None or current_stage == "llm_selection_complete":
+            print("Performing video analysis...")
+            # Ensure input_source is a string
+            if input_source is None:
+                raise ValueError("Input source cannot be None for video analysis.")
+            assert isinstance(input_source, str), "Input source must be a string path."
+            
+            video_analysis = analysis_and_reporting.analyze_video_content(
+                input_source, # input_source is now guaranteed to be str
+                face_tracker=self.face_tracker,
+                object_tracker=self.object_tracker
+            )
             processing_settings = analysis_and_reporting.optimize_processing_settings(video_analysis)
             context.update({
                 "video_analysis": video_analysis,
@@ -28,4 +42,3 @@ class VideoAnalysisAgent(Agent):
             print("⏩ Skipping video analysis. Loaded from state.")
         
         return context
-

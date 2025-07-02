@@ -9,18 +9,50 @@ class VideoEditingAgent(Agent):
     def __init__(self):
         super().__init__("VideoEditingAgent")
 
-    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, context: Dict[str, Any], face_tracker_instance: Any, object_tracker_instance: Any) -> Dict[str, Any]:
         processed_video_path = context.get("processed_video_path")
         clips = context.get("clips")
         transcription = context.get("transcription")
         
         current_stage = context.get("current_stage")
         processing_settings = context.get("processing_settings")
+        video_info = context.get("video_info") # Get from context
+        video_analysis = context.get("video_analysis") # Get from context
 
-        print(f"\n5. Creating {len(clips)} enhanced video clips...")
+        # Ensure critical inputs are available
+        if processed_video_path is None:
+            raise RuntimeError("Processed video path is missing from context. Cannot perform video editing.")
+        if clips is None:
+            raise RuntimeError("Clips data is missing from context. Cannot perform video editing.")
+        if transcription is None:
+            raise RuntimeError("Transcription data is missing from context. Cannot perform video editing.")
+        if video_info is None:
+            raise RuntimeError("Video info is missing from context. Cannot perform video editing.")
+        if processing_settings is None:
+            raise RuntimeError("Processing settings are missing from context. Cannot perform video editing.")
+        if video_analysis is None:
+            raise RuntimeError("Video analysis is missing from context. Cannot perform video editing.")
+
+
+        # Initialize processing_report and created_clips to ensure they are always in context
+        created_clips = context.get("created_clips", [])
+        processing_report = context.get("processing_report", {
+            'results': {'success_rate': 0.0},
+            'performance_metrics': {'total_processing_time': 0.0},
+            'failed_clip_numbers': []
+        })
+
+        print(f"\n✂️ \u001b[94m5. Creating {len(clips)} enhanced video clips...\u001b[0m")
         if current_stage == "video_analysis_complete":
             created_clips, processing_report = video_editing.batch_process_with_analysis(
-                processed_video_path, clips, transcription, custom_settings=processing_settings
+                processed_video_path, 
+                clips, 
+                transcription, 
+                video_info=video_info, # Pass video_info
+                processing_settings=processing_settings, # Pass processing_settings
+                video_analysis=video_analysis, # Pass video_analysis
+                face_tracker_instance=face_tracker_instance, 
+                object_tracker_instance=object_tracker_instance 
             )
             context.update({
                 "created_clips": created_clips,
@@ -29,5 +61,11 @@ class VideoEditingAgent(Agent):
             })
         else:
             print("⏩ Skipping video editing. Loaded from state.")
+            # If skipping, ensure context is updated with potentially loaded values
+            context.update({
+                "created_clips": created_clips,
+                "processing_report": processing_report,
+                "current_stage": "video_editing_complete" # Still mark as complete if skipped
+            })
 
         return context

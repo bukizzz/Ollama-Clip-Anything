@@ -5,6 +5,112 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.9.2] - 2025-07-02
+
+### Added
+
+-   **B-Roll Integration:**
+    -   Introduced `agents/broll_analysis_agent.py` to scan and analyze B-roll assets from the `b_roll_assets` directory.
+    -   The `LLMSelectionAgent` now incorporates B-roll suggestions into the clip selection process.
+    -   `video/frame_processor.py` now supports rendering B-roll images in a split-screen format.
+-   **Split-Screen Mode:**
+    -   `video/frame_processor.py` can now create split-screen videos when two faces are detected.
+    -   `audio/subtitle_generation.py` adjusts subtitle positioning for split-screen layouts.
+-   **CLI Interface:**
+    -   Added `cli.py` with `typer` to provide a more robust and user-friendly command-line interface.
+-   **GPU Management:**
+    -   Introduced `core/gpu_manager.py` to handle GPU memory cleanup.
+
+### Changed
+
+-   **Configuration:**
+    -   All configuration is now centralized in `core/config.yaml`, including agent enablement. `core/config.py` loads all values from the YAML file.
+-   **LLM Interaction:**
+    -   Refactored `llm/llm_interaction.py` for more robust JSON extraction and to handle B-roll and split-screen suggestions.
+    -   Added `llm/image_analysis.py` to centralize image description logic.
+-   **Agent and Pipeline Logic:**
+    -   `main.py` is refactored to work with the new `cli.py` and a dictionary of arguments.
+    -   The main pipeline now manually orchestrates the `VideoAnalysisAgent` and `VideoEditingAgent` to pass tracker instances.
+    -   `core/agent_manager.py` now checks the `AGENT_CONFIG` in `core/config.yaml` to determine which agents to run.
+-   **Dependencies:**
+    -   `typer` added to `requirements.txt`.
+    -   `spacy` is no longer pinned to a specific version.
+-   **Voice Cloning:**
+    -   The placeholder in `audio/voice_cloning.py` has been replaced with a full implementation using the `TTS` library.
+-   **Video Editing:**
+    -   `video/video_editing.py` now uses `SceneDetector` to improve dynamic framing by resetting smoothing at scene changes.
+
+### Fixed
+
+-   **Resource Cleanup:** Improved GPU memory management by explicitly unloading Ollama models and clearing the PyTorch cache.
+-   **LLM Robustness:** Implemented a `clean_numerical_value` function to prevent errors from hallucinated units in LLM output.
+
+## [4.0.9.1] - 2025-07-01
+
+### Added
+
+-   **Enhanced Subtitle Styling:**
+    -   Introduced `HIGHLIGHT_FONT_COLOR`, `HIGHLIGHT_OUTLINE_COLOR`, `SUBTITLE_BACKGROUND_COLOR`, and `SUBTITLE_BORDER_RADIUS` in `core/config.py` for more customizable subtitle appearance.
+    -   Updated `audio/subtitle_generation.py` to utilize these new configuration options, including a new `rgb_to_bgr_ass` helper for color conversion and `{\an5}` for text centering.
+-   **Persistent Tracking:**
+    -   Implemented persistent tracking for faces in `video/face_tracking.py` using `cv2.legacy.TrackerCSRT_create()` and `active_trackers` to maintain face IDs across frames.
+    -   Implemented persistent tracking for objects in `video/object_tracking.py` using `cv2.legacy.TrackerCSRT_create()` and `active_trackers` to maintain object IDs across frames.
+
+### Changed
+
+-   **Configuration Updates:**
+    -   Adjusted `SUBTITLE_FONT_FAMILIES` in `core/config.py` to include 'Impact', 'Arial Black', and 'Bebas Neue' for bolder subtitle options.
+    -   Modified `CLIP_DURATION_RANGE` in `core/config.py` and `core/config.yaml` from (60, 90) to (45, 75) seconds.
+    -   Updated `SMOOTHING_FACTOR` in `core/config.py` and `core/config.yaml` from 0.1 to 0.05 for smoother dynamic framing.
+    -   Increased default `subtitle_font_size` in `core/config.py` and `core/config.yaml` from 24 to 28.
+-   **Dependency Management:**
+    -   Updated `mediapipe` version from `0.10.13` to `0.10.21` in `pyproject.toml` and `requirements.txt`.
+    -   Pinned `pytubefix` to `1.0.0` in `pyproject.toml`.
+-   **Improved Console Output:**
+    -   Added color codes to various print statements across `main.py`, `agents/audio_transcription_agent.py`, `agents/base_agent.py`, `agents/content_alignment_agent.py`, `agents/llm_selection_agent.py`, `agents/results_summary_agent.py`, `agents/storyboarding_agent.py`, `agents/video_analysis_agent.py`, `agents/video_editing_agent.py`, `agents/video_input_agent.py`, `analysis/analysis_and_reporting.py`, `audio/audio_processing.py`, `core/agent_manager.py`, `core/ffmpeg_command_logger.py`, `core/llm_models.py`, `core/prompt_parser.py`, `core/temp_manager.py`, `core/utils.py`, `llm/llm_interaction.py`, `tools/download_models.py`, `video/face_tracking.py`, `video/object_tracking.py`, `video/scene_detection.py`, `video/video_effects.py`, and `video/video_input.py` for better readability and visual feedback.
+-   **Logging & Debugging:**
+    -   Removed debug print statements for `transcript` and `ffmpeg_params` from `video/video_editing.py`.
+
+### Fixed
+
+-   **FFprobe Path:** Corrected the hardcoded `ffprobe` path in `core/utils.py` from `/snap/ffmpeg/current/usr/bin/ffprobe` to `/usr/local/bin/ffprobe` for re-probing converted videos.
+
+## [4.0.9] - 2025-07-01
+
+### Added
+
+-   **Modern CLI:**
+    -   Introduced `typer` library for a modern command-line interface.
+    -   Created `cli.py` to define new CLI commands (`run`, `config`, `tools`, `state`).
+
+### Changed
+
+-   **Image Analysis:**
+    -   Updated `llm/image_analysis.py` to use `ollama.chat` for real-time image description.
+-   **Configuration Management:**
+    -   Adjusted `smoothing_factor` in `core/config.yaml` from `0.05` to `0.1` for smoother frame transitions.
+    -   Refactored `core/config.py` to load all configuration values dynamically from `core/config.yaml`.
+    -   Migrated all previously hardcoded configuration values from `core/config.py` into `core/config.yaml`.
+    -   Added agent-specific configuration to `core/config.yaml` to enable/disable agents.
+-   **Main Application Flow:**
+    -   Refactored `main.py` to accept arguments as a dictionary, decoupling it from `argparse`.
+    -   Updated `cli.py` to correctly invoke `main.py` with the new argument structure and adjusted `sys.path.append`.
+    -   Updated `README.md` to reflect the new CLI usage instructions.
+-   **Agent Management:**
+    -   Modified `core/agent_manager.py` to dynamically execute agents based on the configuration settings in `core/config.yaml`.
+-   **Logging:**
+    -   Added basic logging configuration to `main.py`.
+
+### Removed
+
+-   **ImageBind, Demucs, and TTS Integration:**
+    -   Removed `git+https://github.com/facebookresearch/ImageBind.git#egg=imagebind_client`, `git+https://github.com/facebookresearch/demucs#egg=demucs`, and `git+https://github.com/coqui-ai/TTS.git` from `requirements.txt` due to dependency conflicts with `torch==2.3.0`.
+    -   Reverted changes in `core/llm_models.py`, `video/object_tracking.py`, `video/face_tracking.py`, `audio/voice_cloning.py`, and `audio/audio_processing.py` that integrated these libraries.
+
+### Fixed
+
+-   **Placeholder Implementations:** Completed the implementation of previously placeholder functions for voice cloning, voice separation, and image embedding, enhancing the system's core capabilities.
+
 ## [4.0.8] - 2025-07-01
 
 ### Added

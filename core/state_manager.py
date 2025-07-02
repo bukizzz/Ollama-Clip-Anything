@@ -35,8 +35,7 @@ def update_state_file(updates):
             json.dump(state, f, indent=4)
 
 def delete_state_file():
-    """Deletes the state file and cleans up the temp directory."""
+    """Deletes the state file."""
     state_file = get_state_file_path()
     if os.path.exists(state_file):
         os.remove(state_file)
-    cleanup()

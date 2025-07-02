@@ -16,7 +16,7 @@ class ResultsSummaryAgent(Agent):
         failed_clips = processing_report.get('failed_clip_numbers', [])
         video_analysis = context.get("video_analysis")
 
-        print("\n--- Generation Complete! ---")
+        print("\n--- 🎉 \033[95mGeneration Complete!\033[0m ---")
         print(f"📊 Successfully created: {len(created_clips)}/{len(clips)} clips.")
         print(f"⏱️  Total processing time: {processing_report.get('total_processing_time', 0):.1f}s")
         print(f"📈 Success rate: {processing_report['results']['success_rate']:.1f}%")

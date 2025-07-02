@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from typing import Tuple, Optional
-from moviepy.editor import VideoClip, concatenate_videoclips # MoviePy is needed for VideoClip and concatenate_videoclips
+from moviepy.editor import VideoClip, concatenate_videoclips, TextClip # MoviePy is needed for VideoClip, concatenate_videoclips, and TextClip
 
 class VideoEffects:
     """Advanced video effects and transitions"""
@@ -102,7 +102,7 @@ class VideoEffects:
         
         return clip.fl(color_grade_frame)
 
-    from moviepy.editor import TextClip
+    # from moviepy.editor import TextClip # Moved to top
 
     @staticmethod
     def add_text_overlay(clip: VideoClip, text: str, duration: float, font_size: int = 50, color: str = 'white', position: Tuple[int, int] = ('center', 'center')) -> VideoClip:
@@ -119,5 +119,5 @@ class VideoEffects:
         elif animation_type == 'fade_out':
             return clip.fadeout(duration)
         else:
-            print(f"Unknown animation type: {animation_type}. Skipping animation.")
+            print(f"⚠️ \033[93mUnknown animation type: {animation_type}. Skipping animation.\033[0m")
             return clip

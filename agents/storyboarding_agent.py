@@ -2,10 +2,8 @@ from agents.base_agent import Agent
 from typing import Dict, Any
 import cv2
 from PIL import Image
-import io
-import base64
 from core import llm_models
-from core.temp_manager import get_temp_path
+from llm.image_analysis import describe_image
 
 class StoryboardingAgent(Agent):
     """Agent responsible for analyzing video frames and generating a storyboard."""
@@ -47,7 +45,11 @@ class StoryboardingAgent(Agent):
                 
                 # Use LLM to describe the frame
                 description_prompt = f"Describe the scene in this video frame at {frame_idx/fps:.2f} seconds."
-                llm_description = llm_models.query_minicpm(description_prompt, pil_image)
+                llm_description = describe_image(pil_image, description_prompt)
+                print(f"""
+🖼️ LLM Description for frame at {frame_idx/fps:.2f}s:
+{llm_description}
+""")
                 
                 storyboard_data.append({
                     "timestamp": frame_idx / fps,
@@ -59,5 +61,5 @@ class StoryboardingAgent(Agent):
 
         cap.release()
         context["storyboard_data"] = storyboard_data
-        print(f"✅ Storyboarding complete. Generated {len(storyboard_data)} storyboard entries.")
+        print(f"✅ \033[92mStoryboarding complete. Generated {len(storyboard_data)} storyboard entries.\033[0m")
         return context

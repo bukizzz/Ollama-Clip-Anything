@@ -108,7 +108,7 @@ def optimize_processing_settings(video_analysis: Dict, available_memory_gb: floa
         'enable_advanced_subtitles': True,
         'processing_quality': 'high',
         'batch_size': 5,
-        'parallel_processing': False
+        'parallel_processing': True
     }
     
     complexity = video_analysis.get('processing_complexity', 'medium')
@@ -180,7 +180,7 @@ def save_processing_report(report: Dict, output_dir: str) -> str:
         print(f"Processing report saved to: {report_path}")
         return report_path
     except Exception as e:
-        print(f"Failed to save processing report: {e}")
+        print(f"❌ \033[91mFailed to save processing report: {e}\033[0m")
         return ""
 
 def validate_output_clips(clip_paths: List[str]) -> Dict:

@@ -6,7 +6,7 @@ import platform
 import ollama
 import psutil
 from core.temp_manager import get_temp_path
-from core.config import LLM_MODEL, FFMPEG_PATH
+from core.config import LLM_MODEL
 
 def convert_av1_to_hevc(video_path: str) -> str:
     """Converts an AV1 video to H.265 (HEVC) using FFmpeg."""
@@ -17,26 +17,26 @@ def convert_av1_to_hevc(video_path: str) -> str:
         result = subprocess.run(['nvidia-smi'], capture_output=True)
         if result.returncode == 0:
             encoder = "hevc_nvenc"
-            print("  Using hevc_nvenc (NVIDIA GPU) for AV1 conversion.")
+            print("  ⚙️ Using hevc_nvenc (NVIDIA GPU) for AV1 conversion.")
         else:
             encoder = "libx265"
-            print("Using libx265 (CPU) for AV1 conversion.")
+            print("  ⚙️ Using libx265 (CPU) for AV1 conversion.")
     except FileNotFoundError:
         encoder = "libx265"
-        print("nvidia-smi not found. Using libx265 (CPU) for AV1 conversion.")
+        print("  ⚠️ nvidia-smi not found. Using libx265 (CPU) for AV1 conversion.")
 
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
         "-c:v", encoder, "-preset", "medium", "-crf", "23",
         "-c:a", "copy", output_path
     ]
-    print(f"Running FFmpeg to convert AV1 to HEVC: {' '.join(cmd)}")
+    print(f"⚙️ Running FFmpeg to convert AV1 to HEVC: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print(f"Successfully converted {video_path} to {output_path}")
+        print(f"✅ Successfully converted {video_path} to {output_path}")
         return output_path
     except subprocess.CalledProcessError as e:
-        print(f"FFmpeg conversion failed. Stderr: {e.stderr}")
+        print(f"❌ FFmpeg conversion failed. Stderr: {e.stderr}")
         raise RuntimeError(f"Failed to convert AV1 video: {e}")
 
 def terminate_existing_processes():
@@ -48,11 +48,11 @@ def terminate_existing_processes():
         try:
             if proc.info['name'] == 'python' and proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
                 if proc.info['pid'] != current_pid:
-                    print(f"Found existing main.py process (PID: {proc.info['pid']}). Terminating...")
+                    print(f"🧹 Found existing main.py process (PID: {proc.info['pid']}). Terminating...")
                     proc.terminate()
                     proc.wait(timeout=5) # Wait for process to terminate
                     if proc.is_running():
-                        print(f"Process {proc.info['pid']} did not terminate gracefully, killing...")
+                        print(f"💀 Process {proc.info['pid']} did not terminate gracefully, killing...")
                         proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
@@ -100,7 +100,7 @@ def system_checks():
         if free_space < 5:
             print("⚠️  Warning: Low disk space (< 5GB).")
     except Exception as e:
-        print(f"Could not check disk space: {e}")
+        print(f"❌ Could not check disk space: {e}")
 
     # Check for FFmpeg
     try:
@@ -134,9 +134,9 @@ def system_checks():
         import torch
         print(f"✅ PyTorch is installed (version: {torch.__version__}).")
         if torch.cuda.is_available():
-            print(f"  CUDA is available (version: {torch.version.cuda}).")
+            print(f"  ⚡ CUDA is available (version: {torch.version.cuda}).")
         else:
-            print("  CUDA is NOT available. Processing will use CPU.")
+            print("  🐢 CUDA is NOT available. Processing will use CPU.")
     except ImportError:
         print("❌ CRITICAL: PyTorch is not installed. Please install it (e.g., pip install torch torchvision torchaudio).")
     except Exception as e:
@@ -174,27 +174,27 @@ def system_checks():
 
 def print_system_info():
     """Prints detailed system information for debugging purposes."""
-    print("\n🖥️  System Information:")
-    print(f"   Operating System: {platform.system()} {platform.release()} ({platform.version()})")
-    print(f"   Architecture: {platform.machine()}")
-    print(f"   Python Version: {platform.python_version()} ({platform.python_compiler()})")
-    print(f"   Processor: {platform.processor()}")
+    print("\n🖥️ \u001b[94mSystem Information:\u001b[0m")
+    print(f"   💻 Operating System: {platform.system()} {platform.release()} ({platform.version()})")
+    print(f"   🏗️ Architecture: {platform.machine()}")
+    print(f"   🐍 Python Version: {platform.python_version()} ({platform.python_compiler()})")
+    print(f"   🧠 Processor: {platform.processor()}")
     try:
         import psutil
-        print(f"   Total RAM: {psutil.virtual_memory().total / (1024**3):.2f} GB")
+        print(f"   💾 Total RAM: {psutil.virtual_memory().total / (1024**3):.2f} GB")
     except ImportError:
-        print("   (Install 'psutil' for more RAM info)")
+        print("   ℹ️ (Install 'psutil' for more RAM info)")
     except Exception as e:
-        print(f"   Error getting RAM info: {e}")
+        print(f"   ❌ Error getting RAM info: {e}")
     
     try:
         import torch
         if torch.cuda.is_available():
-            print(f"   GPU (CUDA): {torch.cuda.get_device_name(0)}")
-            print(f"   CUDA Version: {torch.version.cuda}")
+            print(f"   ⚡ GPU (CUDA): {torch.cuda.get_device_name(0)}")
+            print(f"   ⚡ CUDA Version: {torch.version.cuda}")
         else:
-            print("   GPU: None (CUDA not available)")
+            print("   🐢 GPU: None (CUDA not available)")
     except ImportError:
         pass # Already handled in system_checks
     except Exception as e:
-        print(f"   Error checking GPU: {e}")
+        print(f"   ❌ Error checking GPU: {e}")

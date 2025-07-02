@@ -89,22 +89,22 @@ python -m spacy download en_core_web_sm
 
 1. Run the program:
    ```bash
-   python main.py
+   python cli.py run
    ```
    This will prompt you to choose an input method.
 
 2. Alternatively, use command-line arguments for direct input:
    - For a local MP4 file:
      ```bash
-     python main.py --video_path /path/to/your/video.mp4
+     python cli.py run --video_path /path/to/your/video.mp4
      ```
    - For a YouTube URL (will prompt for quality selection):
      ```bash
-     python main.py --youtube_url https://www.youtube.com/watch?v=dQw4w9WgXcQ
+     python cli.py run --youtube_url https://www.youtube.com/watch?v=dQw4w9WgXcQ
      ```
    - For a YouTube URL with a specific quality (e.g., option 6 from the list):
      ```bash
-     python main.py --youtube_url https://www.youtube.com/watch?v=dQw4w9WgXcQ --youtube_quality 6
+     python cli.py run --youtube_url https://www.youtube.com/watch?v=dQw4w9WgXcQ --youtube_quality 6
      ```
 
 3. The program will:
