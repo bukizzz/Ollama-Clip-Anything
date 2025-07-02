@@ -8,7 +8,7 @@ def format_time(seconds):
     ms = int((seconds - int(seconds)) * 100)
     return f"{h:01d}:{m:02d}:{s:02d}.{ms:02d}"
 
-def create_ass_file(timestamps, output_path="subtitles.ass", time_offset=0, video_height: int = 1080, split_screen_mode: bool = False):
+def create_ass_file(timestamps, output_path="subtitles.ass", time_offset=0, video_height: int = 1080, split_screen_mode: bool = False, word_by_word_timing: bool = True, emphasis_effects: bool = False, speaker_color_coding: bool = False):
     """
     Creates an ASS subtitle file with word-by-word highlighting.
     """

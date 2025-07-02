@@ -6,7 +6,7 @@ from video.face_tracking import FaceTracker
 from video.object_tracking import ObjectTracker
 
 class FrameProcessor:
-    def __init__(self, original_w: int, original_h: int, output_w: int, output_h: int, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None, split_screen_mode: bool = False, b_roll_image_path: Optional[str] = None):
+    def __init__(self, original_w: int, original_h: int, output_w: int, output_h: int, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None, split_screen_mode: bool = False, b_roll_image_path: Optional[str] = None, layout_manager: Optional['LayoutManager'] = None):
         self.original_w = original_w
         self.original_h = original_h
         self.output_w = output_w
@@ -17,11 +17,26 @@ class FrameProcessor:
         self.smoothed_center_y = self.original_h / 2
         self.split_screen_mode = split_screen_mode
         self.b_roll_image_path = b_roll_image_path
+        self.layout_manager = layout_manager # New: LayoutManager instance
 
-    def process_frame(self, get_frame: Callable[[float], np.ndarray], t: float, scene_changed: bool = False) -> np.ndarray:
+    def process_frame(self, get_frame: Callable[[float], np.ndarray], t: float, scene_changed: bool = False, active_speaker_id: Optional[str] = None, current_layout_recommendation: Optional[str] = None) -> np.ndarray:
         frame = get_frame(t).copy()
         current_w, current_h = frame.shape[1], frame.shape[0]
 
+        # If LayoutManager is present, use it to determine the frame processing logic
+        if self.layout_manager and current_layout_recommendation:
+            final_frame = self.layout_manager.apply_layout(
+                frame, 
+                current_layout_recommendation, 
+                self.output_w, 
+                self.output_h, 
+                self.face_tracker, 
+                self.object_tracker, 
+                active_speaker_id=active_speaker_id
+            )
+            return final_frame
+
+        # Existing logic for dynamic framing, split-screen, and b-roll
         center_x, center_y = current_w / 2, current_h / 2
         main_face = None
         faces = []
@@ -151,8 +166,18 @@ class FrameProcessor:
             final_frame = cv2.resize(cropped_frame, (self.output_w, self.output_h))
         
         if self.face_tracker and faces:
-            pass
-        
+            # Active speaker highlighting and speaker labels
+            for face in faces:
+                x, y, w, h = face['bbox']
+                if active_speaker_id and face.get('id') == active_speaker_id: # Assuming face has an 'id'
+                    # Draw a green rectangle around the active speaker
+                    cv2.rectangle(final_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    # Add speaker label
+                    cv2.putText(final_frame, f"Speaker {active_speaker_id}", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                else:
+                    # Draw a subtle grey rectangle for non-active speakers
+                    cv2.rectangle(final_frame, (x, y), (x+w, y+h), (100, 100, 100), 1)
+
         if self.object_tracker:
             objects = self.object_tracker.detect_objects_in_frame(frame)
             for obj in objects:

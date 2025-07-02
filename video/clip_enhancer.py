@@ -43,7 +43,9 @@ def create_enhanced_individual_clip(
     transcript: List[Dict],
     processing_settings: Dict, 
     tracking_manager: TrackingManager,
-    output_dir: str
+    output_dir: str,
+    audio_rhythm_data: Dict, # New parameter
+    llm_cut_decisions: List[Dict] # New parameter
 ) -> str:
     """Create an individual clip with all enhanced features"""
     start, end = float(clip_data['start']), float(clip_data['end'])
@@ -90,8 +92,42 @@ def create_enhanced_individual_clip(
             output_h += 1
 
         split_screen_mode = clip_data.get('split_screen', False)
+        # Apply dynamic editing based on audio rhythm and LLM cut decisions
+        # This is a simplified integration. A full implementation would involve more complex logic
+        # to precisely align effects with beats and LLM recommendations.
+        def dynamic_frame_modifier(get_frame, t):
+            frame = get_frame(t)
+            
+            # Apply rhythm-synced zoom (simplified example)
+            if audio_rhythm_data and 'beat_times' in audio_rhythm_data:
+                for beat_time in audio_rhythm_data['beat_times']:
+                    if abs(t - beat_time) < 0.1: # If close to a beat
+                        # Apply a subtle zoom effect
+                        zoom_factor = 1.05 # Example zoom
+                        h, w, _ = frame.shape
+                        new_h, new_w = int(h * zoom_factor), int(w * zoom_factor)
+                        frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                        # Crop to original size from center
+                        start_x = (new_w - w) // 2
+                        start_y = (new_h - h) // 2
+                        frame = frame[start_y:start_y+h, start_x:start_x+w]
+                        break
+
+            # Apply cuts determined by LLM video director (handled by subclip already, but for effects)
+            # If LLM suggests a specific effect at a timestamp, it would be applied here.
+            # For now, we assume LLM decisions primarily influence clip selection (start/end times).
+
+            # Apply speaker-aware visual effects (placeholder)
+            # This would involve using speaker_tracking_results to identify active speaker
+            # and apply effects like highlighting or subtle blur to non-speakers.
+
+            # Apply engagement-optimized cuts (handled by LLM selection, but for effects)
+            # If a high engagement moment is detected, apply a specific visual flair.
+
+            return processor.process_frame(frame, t, scene_changed=is_scene_changed(t))
+
         processor = FrameProcessor(original_w, original_h, output_w, output_h, face_tracker, object_tracker, split_screen_mode=split_screen_mode, b_roll_image_path=clip_data.get('b_roll_image', None))
-        processed_video_clip = original_clip.fl(lambda gf, t: processor.process_frame(gf, t, scene_changed=is_scene_changed(t)))
+        processed_video_clip = original_clip.fl(dynamic_frame_modifier)
         
         # Output path
         output_path = get_next_output_filename(original_video_path, clip_number, output_dir)

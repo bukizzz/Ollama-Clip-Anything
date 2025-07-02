@@ -1,12 +1,18 @@
 from agents.base_agent import Agent
 from typing import Dict, Any
 from audio import audio_processing
+from agents.audio_rhythm_agent import AudioRhythmAgent
+from agents.audio_analysis_agent import AudioAnalysisAgent
+from core.config import load_config
+from core.state_manager import set_stage_status, get_stage_status
 
 class AudioTranscriptionAgent(Agent):
-    """Agent responsible for transcribing the video's audio."""
+    """Agent responsible for transcribing the video's audio and performing rhythm analysis."""
 
-    def __init__(self):
+    def __init__(self, state_manager):
         super().__init__("AudioTranscriptionAgent")
+        self.config = load_config()
+        self.state_manager = state_manager
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         processed_video_path = context.get("processed_video_path")
@@ -35,5 +41,14 @@ class AudioTranscriptionAgent(Agent):
             print("⏩ Skipping transcription. Loaded from state.")
             
         print(f"✅ Transcription complete: {len(transcription)} segments found.")
-        
+
+        # Run AudioRhythmAgent
+        audio_rhythm_agent = AudioRhythmAgent(self.config, self.state_manager)
+        audio_rhythm_agent.run(context)
+
+        # Run AudioAnalysisAgent
+        audio_analysis_agent = AudioAnalysisAgent(self.config, self.state_manager)
+        audio_analysis_agent.run(context)
+
         return context
+

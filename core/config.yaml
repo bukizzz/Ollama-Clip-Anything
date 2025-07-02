@@ -91,3 +91,37 @@ agents:
   video_analysis_agent: true
   video_editing_agent: true
   results_summary_agent: true
+
+# New pipeline configuration sections
+engagement_analysis:
+  facial_expression_threshold: 0.7
+  gesture_detection_threshold: 0.6
+  energy_level_threshold: 0.5
+
+audio_rhythm:
+  tempo_detection_sensitivity: 0.8
+  beat_matching_sensitivity: 0.7
+
+layout_detection:
+  multi_person_detection_threshold: 0.75
+  screen_share_identification_threshold: 0.8
+
+subtitle_animation:
+  word_by_word_timing_enabled: true
+  emphasis_effects_enabled: true
+  speaker_color_coding_enabled: true
+
+music_integration:
+  mood_detection_enabled: true
+  tempo_matching_enabled: true
+  beat_synchronization_enabled: true
+
+intro_narration:
+  voice_cloning_enabled: true
+  tone_matching_enabled: true
+  duration_limit_seconds: 5
+
+qwen_vision:
+  frame_extraction_rate_fps: 1
+  resolution_settings: "720p"
+  temporal_encoding_parameters: "default"

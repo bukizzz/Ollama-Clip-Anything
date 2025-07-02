@@ -97,15 +97,31 @@ def main(args: dict):
         
         # Initialize MultiAgent with the pipeline
         pipeline_agents = [
-            VideoInputAgent(),
-            StoryboardingAgent(),
-            AudioTranscriptionAgent(), # Moved to run before ContentAlignmentAgent
-            ContentAlignmentAgent(),
-            BrollAnalysisAgent(),
-            LLMSelectionAgent(),
-            VideoAnalysisAgent(), # This agent initializes face_tracker and object_tracker
-            VideoEditingAgent(),  # This agent needs face_tracker and object_tracker
-            ResultsSummaryAgent()
+            VideoInputAgent(state_manager), # Pass state_manager
+            StoryboardingAgent(state_manager), # Pass state_manager
+            AudioTranscriptionAgent(state_manager), # Pass state_manager
+            AudioAnalysisAgent(state_manager), # New agent
+            IntroNarrationAgent(state_manager), # New agent
+            ContentAlignmentAgent(state_manager), # Pass state_manager
+            BrollAnalysisAgent(state_manager), # Pass state_manager
+            FramePreprocessingAgent(state_manager), # New agent
+            QwenVisionAgent(state_manager), # New agent
+            VideoAnalysisAgent(state_manager), # Pass state_manager
+            EngagementAnalysisAgent(state_manager), # New agent
+            LayoutDetectionAgent(state_manager), # New agent
+            SpeakerTrackingAgent(state_manager), # New agent
+            HookIdentificationAgent(state_manager), # New agent
+            LLMVideoDirectorAgent(state_manager), # New agent
+            LLMSelectionAgent(state_manager), # Pass state_manager
+            ViralPotentialAgent(state_manager), # New agent
+            DynamicEditingAgent(state_manager), # New agent
+            MusicSyncAgent(state_manager), # New agent
+            LayoutOptimizationAgent(state_manager), # New agent
+            SubtitleAnimationAgent(state_manager), # New agent
+            ContentEnhancementAgent(state_manager), # New agent
+            VideoEditingAgent(state_manager), # Pass state_manager
+            QualityAssuranceAgent(state_manager), # New agent
+            ResultsSummaryAgent(state_manager)
         ]
 
         # Initialize AgentManager with the full pipeline

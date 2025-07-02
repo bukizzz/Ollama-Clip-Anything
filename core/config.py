@@ -66,3 +66,12 @@ FFMPEG_ENCODER_PARAMS = _config.get('ffmpeg_encoder_params', {
     "hevc_nvenc": ['-preset', 'p5', '-tune', 'hq'],
     "av1_nvenc": ['-preset', 'p5', '-tune', 'hq'],
 })
+
+# --- New Pipeline Configuration Sections ---
+ENGAGEMENT_ANALYSIS_CONFIG = _config.get('engagement_analysis', {})
+AUDIO_RHYTHM_CONFIG = _config.get('audio_rhythm', {})
+LAYOUT_DETECTION_CONFIG = _config.get('layout_detection', {})
+SUBTITLE_ANIMATION_CONFIG = _config.get('subtitle_animation', {})
+MUSIC_INTEGRATION_CONFIG = _config.get('music_integration', {})
+INTRO_NARRATION_CONFIG = _config.get('intro_narration', {})
+QWEN_VISION_CONFIG = _config.get('qwen_vision', {})

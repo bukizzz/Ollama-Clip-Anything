@@ -42,6 +42,8 @@ def batch_create_enhanced_clips(
     video_info: Dict, 
     processing_settings: Dict, 
     tracking_manager,
+    audio_rhythm_data: Dict, # New parameter
+    llm_cut_decisions: List[Dict], # New parameter
     logger: Optional[logging.Logger] = None, 
     custom_clip_themes: Optional[List[Dict]] = None, 
     **enhancement_options
@@ -59,7 +61,9 @@ def batch_create_enhanced_clips(
                 original_video_path, clip_data, i, video_info, 
                 transcript, processing_settings,
                 tracking_manager,
-                OUTPUT_DIR
+                OUTPUT_DIR,
+                audio_rhythm_data=audio_rhythm_data, # Pass new parameter
+                llm_cut_decisions=llm_cut_decisions # Pass new parameter
             )
             created_clips.append(clip_path)
         except Exception as e:
@@ -72,55 +76,6 @@ def batch_create_enhanced_clips(
     
     return created_clips, failed_clips
 
-
-def detect_rhythm_and_beats(video_path: str) -> List[float]:
-    """Detects rhythm and beats in the video's audio using librosa.
-    Returns a list of beat timestamps.
-    """
-    print("Detecting rhythm and beats...")
-    audio_temp_path = get_temp_path("temp_audio_for_beats.wav")
-    try:
-        extract_audio(video_path, audio_temp_path)
-        y, sr = librosa.load(audio_temp_path)
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr).tolist()
-        beat_times = librosa.frames_to_time(beats, sr=sr).tolist()
-        print(f"Detected {len(beat_times)} beats.")
-        return beat_times
-    except Exception as e:
-        print(f"Failed to detect rhythm and beats: {e}")
-        return []
-
-def sync_cuts_with_beats(clips: List[Dict], beat_times: List[float]) -> List[Dict]:
-    """Adjusts clip start/end times to align with detected beats.
-    This is a simplified example and can be made more sophisticated.
-    """
-    print("Syncing cuts with beats...")
-    synced_clips = []
-    for clip in clips:
-        start = clip['start']
-        end = clip['end']
-        
-        # Find the closest beat to the clip's start
-        closest_start_beat = min(beat_times, key=lambda x: abs(x - start), default=start)
-        # Find the closest beat to the clip's end
-        closest_end_beat = min(beat_times, key=lambda x: abs(x - end), default=end)
-        
-        # Adjust clip to align with beats, ensuring minimum duration
-        new_start = closest_start_beat
-        new_end = closest_end_beat
-        
-        # Ensure the clip duration is still within reasonable bounds
-        if new_end - new_start < 5: # Example: ensure minimum 5 seconds
-            new_end = new_start + (end - start) # Revert to original duration if too short
-        
-        synced_clips.append({
-            'start': new_start,
-            'end': new_end,
-            'text': clip['text']
-        })
-    print("Cuts synced with beats.")
-    return synced_clips
-
 from video.tracking_manager import TrackingManager
 
 def batch_process_with_analysis(
@@ -130,6 +85,8 @@ def batch_process_with_analysis(
     video_info: Dict, 
     processing_settings: Dict, 
     video_analysis: Dict, 
+    audio_rhythm_data: Dict, # New parameter
+    llm_cut_decisions: List[Dict], # New parameter
     custom_settings: Optional[Dict] = None
 ) -> Tuple[List[str], Dict]:
     """Complete batch processing pipeline with analysis and optimization"""
@@ -151,7 +108,9 @@ def batch_process_with_analysis(
         transcript,
         video_info, 
         processing_settings, 
-        tracking_manager
+        tracking_manager,
+        audio_rhythm_data, # Pass new parameter
+        llm_cut_decisions # Pass new parameter
     )
 
     
@@ -175,6 +134,7 @@ def batch_process_with_analysis(
     print(f"Average time per clip: {report['performance_metrics']['avg_time_per_clip']:.1f}s") 
     
     return created_clips, report
+
 
 if __name__ == "__main__":
     print("Enhanced video editing module loaded successfully!")
