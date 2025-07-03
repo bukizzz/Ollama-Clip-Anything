@@ -1,74 +1,67 @@
-import cv2
-from core.base_agent import BaseAgent
-from core.state_manager import set_stage_status, get_stage_status
-from core.config import LAYOUT_DETECTION_CONFIG # Reusing for thresholds
+from agents.base_agent import Agent
+from core.state_manager import set_stage_status
 
-class LayoutOptimizationAgent(BaseAgent):
+class LayoutOptimizationAgent(Agent):
     def __init__(self, config, state_manager):
-        super().__init__(config, state_manager)
-        self.layout_config = LAYOUT_DETECTION_CONFIG
+        super().__init__("LayoutOptimizationAgent")
+        self.config = config
+        self.state_manager = state_manager
 
-    def run(self, context):
-        layout_detection_results = context.get('layout_detection_results')
-        speaker_tracking_results = context.get('speaker_tracking_results')
-        clips = context.get('clips')
+    def execute(self, context):
+        layout_detection = context.get('layout_detection_results', [])
+        speaker_tracking = context.get('speaker_tracking_results', {})
+        clips = context.get('clips', [])
 
-        if not layout_detection_results or not clips:
-            self.log_error("Layout detection results or clips not found. Cannot perform layout optimization.")
-            set_stage_status('layout_optimization', 'failed', {'reason': 'Missing layout data or clips'})
-            return False
+        if not layout_detection or not clips:
+            self.log_error("Layout detection or clips data missing. Cannot optimize layout.")
+            set_stage_status('layout_optimization', 'failed', {'reason': 'Missing dependencies'})
+            return context
 
-        self.log_info("Starting layout optimization agent...")
+        self.log_info("Optimizing layout for selected clips...")
         set_stage_status('layout_optimization', 'running')
 
         try:
-            optimized_layouts = []
+            layout_recommendations = []
             for clip in clips:
-                clip_start = clip['start']
-                clip_end = clip['end']
-
-                # Filter layout detection results for the current clip
-                clip_layouts = [l for l in layout_detection_results 
-                                if clip_start <= l['timestamp'] <= clip_end]
-
-                # Determine optimal layout based on detected layout types and speaker info
-                # This is a simplified logic. A real system would use more advanced rules
-                # and potentially machine learning to determine the best layout.
-                optimal_layout = "single_person_focus" # Default
-                num_multi_person_frames = sum(1 for l in clip_layouts if l['layout_type'] == 'multi_person')
-                num_presentation_frames = sum(1 for l in clip_layouts if l['layout_type'] == 'presentation_mode')
-
-                if num_multi_person_frames > len(clip_layouts) * 0.5: # More than half frames are multi-person
-                    optimal_layout = "multi_person_grid"
-                elif num_presentation_frames > len(clip_layouts) * 0.5:
-                    optimal_layout = "presentation_with_speaker"
+                start, end = clip['start'], clip['end']
                 
-                # Add dynamic speaker focus (conceptual)
-                # If speaker tracking is available, identify the active speaker and suggest focusing on them.
-                active_speaker_id = None
-                if speaker_tracking_results:
-                    # Find the most frequent speaker in this clip segment
-                    speaker_counts = {}
-                    for speaker_data in speaker_tracking_results:
-                        if clip_start <= speaker_data['start'] <= clip_end:
-                            speaker_counts[speaker_data['speaker_id']] = speaker_counts.get(speaker_data['speaker_id'], 0) + 1
-                    if speaker_counts:
-                        active_speaker_id = max(speaker_counts, key=speaker_counts.get)
-
-                optimized_layouts.append({
-                    'clip_start': clip_start,
-                    'clip_end': clip_end,
-                    'optimal_layout': optimal_layout,
-                    'active_speaker_id': active_speaker_id,
-                    'transitions': "smooth_morph" # Placeholder for transition type
+                # Analyze layout for this clip's duration
+                clip_layouts = [item for item in layout_detection if start <= item['timestamp'] <= end]
+                
+                num_faces = [item['num_faces'] for item in clip_layouts]
+                avg_faces = sum(num_faces) / len(num_faces) if num_faces else 0
+                
+                is_presentation = any(item['is_screen_share'] for item in clip_layouts)
+                
+                # Determine optimal layout
+                if is_presentation:
+                    layout = "presentation_with_speaker"
+                elif avg_faces > 1.5:
+                    layout = "multi_person_grid"
+                else:
+                    layout = "single_person_focus"
+                
+                # Dynamic speaker focus
+                active_speaker = None
+                if 'speaker_transitions' in speaker_tracking:
+                    for t in speaker_tracking['speaker_transitions']:
+                        if start <= t['timestamp'] <= end:
+                            active_speaker = t['to']
+                            break
+                
+                layout_recommendations.append({
+                    'clip_start': start,
+                    'clip_end': end,
+                    'recommended_layout': layout,
+                    'active_speaker': active_speaker
                 })
-            
-            context['optimized_layouts'] = optimized_layouts
-            self.log_info(f"Layout optimization complete. Generated {len(optimized_layouts)} optimized layouts.")
-            set_stage_status('layout_optimization_complete', 'complete', {'num_layouts': len(optimized_layouts)})
+
+            context['layout_optimization_recommendations'] = layout_recommendations
+            self.log_info("Layout optimization complete.")
+            set_stage_status('layout_optimization_complete', 'complete', {'num_recommendations': len(layout_recommendations)})
             return True
 
         except Exception as e:
             self.log_error(f"Error during layout optimization: {e}")
             set_stage_status('layout_optimization', 'failed', {'reason': str(e)})
-            return False
+            return context

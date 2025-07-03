@@ -4,12 +4,12 @@ Manages the application's state for failure recovery and resumption.
 """
 import os
 import json
-from core.config import TEMP_DIR, STATE_FILE
+from core.config import config
 from core.temp_manager import cleanup_temp_dir as cleanup
 
 def get_state_file_path():
     """Returns the full path to the state file."""
-    return os.path.join(TEMP_DIR, STATE_FILE)
+    return os.path.join(config.get('temp_dir'), config.get('state_file'))
 
 def create_state_file(initial_state):
     """Creates a new state file."""

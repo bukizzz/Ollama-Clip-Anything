@@ -1,18 +1,19 @@
 # Core dependencies
 torch==2.3.0
 torchvision==0.18.0
-torchaudio==2.3.0
-faster-whisper==1.0.0
+torchaudio==2.3.0 # Satisfies torch-audio>=2.0.0
+faster-whisper
 whisper-timestamped==1.15.8
 moviepy==1.0.3
 pytubefix
 ollama==0.2.0
-opencv-python==4.9.0.80
+# Removed opencv-python, replaced with opencv-contrib-python
+opencv-contrib-python>=4.8.0 # For advanced face analysis (DeepFace)
 numpy==1.26.4
 spacy
 mediapipe==0.10.13
-scikit-learn==1.2.2
-librosa
+scikit-learn>=1.3.0 # Updated from 1.2.2
+librosa>=0.10.0 # Updated from no version
 soundfile==0.12.1
 webcolors==1.13
 Pillow
@@ -33,12 +34,17 @@ ruff==0.5.0
 pyyaml==6.0.1
 typer
 
-# New dependencies for pipeline evolution
-librosa>=0.10.0
-scikit-learn>=1.3.0
-opencv-contrib-python>=4.8.0
+# New dependencies for pipeline evolution (added or updated)
 sentence-transformers>=2.2.0
-transformers>=4.30.0
-torch-audio>=2.0.0
-qwen-vl>=2.5.0
+transformers==4.51.3
+accelerate
+transformers_stream_generator # Added for Qwen-VL
+qwen-vl-utils[decord]
+safetensors # Added for Qwen-VL model loading
+
 pyannote.audio>=3.1.1
+
+deepface # Added for VideoAnalysisAgent
+coqui-tts # Replaced TTS for Python 3.12+ compatibility
+tf-keras # Added for transformers Keras 3 compatibility
+psutil # Added for memory monitoring

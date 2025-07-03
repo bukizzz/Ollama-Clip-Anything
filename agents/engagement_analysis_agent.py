@@ -1,55 +1,62 @@
-from core.base_agent import BaseAgent
-from core.state_manager import set_stage_status, get_stage_status
-from core.config import ENGAGEMENT_ANALYSIS_CONFIG
+from agents.base_agent import Agent
+from core.state_manager import set_stage_status
 
-class EngagementAnalysisAgent(BaseAgent):
-    def __init__(self, config, state_manager):
-        super().__init__(config, state_manager)
-        self.engagement_config = ENGAGEMENT_ANALYSIS_CONFIG
+class EngagementAnalysisAgent(Agent):
+    def __init__(self, agent_config, state_manager):
+        super().__init__("EngagementAnalysisAgent")
+        self.config = agent_config
+        self.state_manager = state_manager
+        self.engagement_config = agent_config.get('engagement_analysis', {})
 
-    def run(self, context):
-        video_analysis_results = context.get('video_analysis_results')
-        if not video_analysis_results or not video_analysis_results.get('engagement_metrics'):
-            self.log_error("Engagement metrics not found in video analysis results. Cannot perform engagement analysis.")
-            set_stage_status('engagement_analysis', 'failed', {'reason': 'Missing engagement metrics'})
-            return False
+    def execute(self, context):
+        video_analysis = context.get('video_analysis_results')
+        if not video_analysis:
+            self.log_error("Video analysis results not found. Cannot perform engagement analysis.")
+            set_stage_status('engagement_analysis', 'failed', {'reason': 'Missing video analysis results'})
+            return context
 
         self.log_info("Starting engagement analysis...")
         set_stage_status('engagement_analysis', 'running')
 
         try:
-            engagement_metrics = video_analysis_results['engagement_metrics']
-            facial_expression_threshold = self.engagement_config.get('facial_expression_threshold', 0.7)
-            gesture_detection_threshold = self.engagement_config.get('gesture_detection_threshold', 0.6)
-            energy_level_threshold = self.engagement_config.get('energy_level_threshold', 0.5)
-
-            scored_segments = []
-            for metric in engagement_metrics:
-                score = metric['score']
-                timestamp = metric['timestamp']
+            engagement_scores = []
+            for i in range(len(video_analysis['facial_expressions'])):
+                timestamp = video_analysis['facial_expressions'][i]['timestamp']
                 
-                # Simple scoring logic based on thresholds
-                # This would be more sophisticated with actual facial expression and gesture data
-                viral_potential_score = 0
-                if score > facial_expression_threshold: # Placeholder for actual facial expression score
-                    viral_potential_score += 0.4
-                if score > gesture_detection_threshold: # Placeholder for actual gesture score
-                    viral_potential_score += 0.3
-                if score > energy_level_threshold: # Placeholder for actual energy level score
-                    viral_potential_score += 0.3
-
-                scored_segments.append({
+                # Score facial expressions
+                expr = video_analysis['facial_expressions'][i]['expression']
+                expr_score = 0.5 if expr == "happy" else 0.1 if expr == "neutral" else 0.8 if expr == "surprise" else 0
+                
+                # Score gestures
+                gestures = video_analysis['gesture_recognition'][i]['gestures']
+                gesture_score = len(gestures) * 0.2
+                
+                # Score energy levels
+                energy = video_analysis['energy_levels'][i]['level']
+                energy_score = min(energy / 10, 1.0) # Normalize
+                
+                # Viral potential score
+                viral_score = (expr_score * 0.5) + (gesture_score * 0.3) + (energy_score * 0.2)
+                
+                engagement_scores.append({
                     'timestamp': timestamp,
-                    'engagement_score': score,
-                    'viral_potential_score': viral_potential_score
+                    'engagement_score': viral_score,
+                    'details': {
+                        'expression': expr,
+                        'gestures': gestures,
+                        'energy': energy
+                    }
                 })
+
+            # Rank segments by engagement
+            ranked_segments = sorted(engagement_scores, key=lambda x: x['engagement_score'], reverse=True)
             
-            context['engagement_analysis_results'] = scored_segments
+            context['engagement_analysis_results'] = ranked_segments
             self.log_info("Engagement analysis complete.")
-            set_stage_status('engagement_analysis_complete', 'complete', {'num_segments_scored': len(scored_segments)})
+            set_stage_status('engagement_analysis_complete', 'complete', {'num_segments_scored': len(ranked_segments)})
             return True
 
         except Exception as e:
             self.log_error(f"Error during engagement analysis: {e}")
             set_stage_status('engagement_analysis', 'failed', {'reason': str(e)})
-            return False
+            return context

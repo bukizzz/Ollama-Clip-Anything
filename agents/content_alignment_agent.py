@@ -1,16 +1,18 @@
-from agents.base_agent import BaseAgent
+from agents.base_agent import Agent
 from typing import Dict, Any
 from llm import llm_interaction
 import json
-from core.state_manager import set_stage_status, get_stage_status
+from core.state_manager import set_stage_status
 
-class ContentAlignmentAgent(BaseAgent):
+class ContentAlignmentAgent(Agent):
     """Agent responsible for synchronizing audio and video elements."""
 
     def __init__(self, config, state_manager):
-        super().__init__(config, state_manager)
+        super().__init__("ContentAlignmentAgent")
+        self.config = config
+        self.state_manager = state_manager
 
-    def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         transcription = context.get("transcription")
         storyboard_data = context.get("storyboard_data")
         audio_rhythm_data = context.get('audio_rhythm_data')
@@ -90,8 +92,9 @@ class ContentAlignmentAgent(BaseAgent):
         - "content_topic_shift": Indicate if a content topic shift is detected.
         """
 
+        self.log_info("🧠 \u001b[94mPerforming content alignment with LLM...\u001b[0m")
         try:
-            response = llm_interaction.llm_pass(llm_interaction.LLM_MODEL, [
+            response = llm_interaction.llm_pass(self.config.get('llm_model'), [
                 {"role": "system", "content": "You are an expert in video content analysis and synchronization."},
                 {"role": "user", "content": llm_prompt.strip()}
             ])
@@ -100,13 +103,13 @@ class ContentAlignmentAgent(BaseAgent):
             context["content_alignment_data"] = alignment_results
             self.log_info("Content alignment by LLM complete.")
             set_stage_status('content_alignment_complete', 'complete', {'num_alignments': len(alignment_results)})
+        except llm_interaction.InvalidJsonError as e:
+            self.log_error(f"Failed to perform content alignment with LLM: {e}. Stopping pipeline.")
+            set_stage_status('content_alignment', 'failed', {'reason': str(e)})
+            return context
         except Exception as e:
             self.log_error(f"Failed to perform content alignment with LLM: {e}")
             set_stage_status('content_alignment', 'failed', {'reason': str(e)})
             context["content_alignment_data"] = "Error during alignment."
 
         return context
-
-    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        # This method is kept for compatibility with AgentManager, but the core logic is in run()
-        return self.run(context)

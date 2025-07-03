@@ -1,31 +1,44 @@
-# Ignore temporary files generated during testing
-test_nvenc_output.mp4
+# Gitignore for Ollama-Clip-Anything
 
-# Ignore temporary directory created by temp_manager
-.temp/
-temp_processing/
-
-# Python cache directories
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+venv/
+.venv/
+env/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 
-# Downloaded video files
+# IDEs
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+.localized
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Video and audio outputs
+output/
 videos/
-dummy_video.mp4
-video.mp4
+train2014/
+# State and temporary data
+state.json
+temp/
 
-# FFmpeg executable (if downloaded)
-ffmpeg
+# Specific large files or directories
+plan.md
 
-# Test related files
-tests/
-
-# Ignore findings.txt
-findings.txt
-
-# Face database
-video/face_db.json
-
-# Project configuration
-pyproject.toml
-b_roll_assets/
-REPORT.md
+# Ollama specific
+ollama_downloads/

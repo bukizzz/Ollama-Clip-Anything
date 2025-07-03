@@ -1,59 +1,65 @@
 # core/config.yaml
-# Basic configurable inputs for Ollama-Clip-Anything
+# Unified configuration file for Ollama-Clip-Anything
 
 # Directory settings
 temp_dir: "temp_processing"
 state_file: ".temp_clips.json"
 output_dir: "videos"
 clip_prefix: "clip"
-b_roll_assets_dir: "b_roll_assets"
+b_roll_assets_dir: "train2014"
 
 # Model settings
 whisper_model: "base"
-llm_model: "qwen2.5-coder:7b"
+llm_model: "llama3.1:8b" # Default LLM for general tasks
 
-# Subtitle settings
-subtitle_font_size: 28
-subtitle_font_color: "FFFFFF"
-subtitle_outline_color: "000000"
-subtitle_shadow_color: "000000"
-subtitle_font_families: ['Impact', 'Arial Black', 'Bebas Neue']
-subtitle_background_color: 'FFA500'
-subtitle_border_radius: 10
-highlight_font_color: '00FFFF'
-highlight_outline_color: '000000'
-
-# Video processing settings
-clip_duration_min: 45
-clip_duration_max: 75
-clip_validation_min: 30
-clip_validation_max: 90
-smoothing_factor: 0.1
-
-# LLM settings
-llm_max_retries: 100
-llm_min_clips_needed: 1
-
-# LLM configuration
+# LLM configuration (for specific LLM interactions)
 llm:
   min_model: "MiniCPM"
-  image_model: "ImageBind"
+  image_model: "qwen2.5vl:3b" # Model for image recognition tasks
   api_keys:
     openai: "YOUR_OPENAI_KEY"
     ollama: "http://localhost:11434"
 
+# Subtitle settings
+subtitle_font_families: ['Impact', 'Arial Black', 'Bebas Neue']
+subtitle_background_color: 'FFA500'
+subtitle_border_radius: 10
+subtitle_font_size: 28
+subtitle_font_color: 'FFFFFF'
+subtitle_outline_color: '000000'
+subtitle_shadow_color: '000000'
+highlight_font_color: '00FFFF'
+highlight_outline_color: '000000'
+
+# Video processing settings
+clip_duration_min: 60 # Minimum desired clip duration in seconds
+clip_duration_max: 90 # Maximum desired clip duration in seconds
+clip_validation_min: 50 # Minimum valid clip duration for internal validation
+clip_validation_max: 90 # Maximum valid clip duration for internal validation
+smoothing_factor: 0.1
+
+# LLM Interaction Settings (general)
+llm_max_retries: 30
+llm_min_clips_needed: 1
+
 # Personalization settings
-custom_clip_themes: # Placeholder for custom clip themes
-  - name: "default"
-    settings:
-      vertical_split: false
-      horizontal_split: false
-      two_face_detection: false
-      # Add more theme-specific settings here
+custom_clip_themes: [] # Placeholder for custom clip themes
+
+# Agent Configuration (enable/disable agents)
+agents:
+  video_input_agent: true
+  storyboarding_agent: true
+  content_alignment_agent: true
+  audio_transcription_agent: true
+  broll_analysis_agent: true
+  llm_selection_agent: true
+  video_analysis_agent: true
+  video_editing_agent: true
+  results_summary_agent: true
 
 # Encoding settings
 video_encoder: "h264_nvenc"
-# ffmpeg_path: "/usr/local/bin/ffmpeg" # Uncomment and set if FFmpeg is not in system PATH
+ffmpeg_path: "/usr/local/bin/ffmpeg" # Path to FFmpeg executable. Set to None to use system's PATH.
 ffmpeg_global_params:
   - '-pix_fmt'
   - 'yuv420p'
@@ -80,19 +86,7 @@ ffmpeg_encoder_params:
     - '-tune'
     - 'hq'
 
-# Agent Configuration
-agents:
-  video_input_agent: true
-  storyboarding_agent: true
-  content_alignment_agent: true
-  audio_transcription_agent: true
-  broll_analysis_agent: true
-  llm_selection_agent: true
-  video_analysis_agent: true
-  video_editing_agent: true
-  results_summary_agent: true
-
-# New pipeline configuration sections
+# New pipeline configuration sections (agent-specific settings)
 engagement_analysis:
   facial_expression_threshold: 0.7
   gesture_detection_threshold: 0.6
@@ -125,3 +119,16 @@ qwen_vision:
   frame_extraction_rate_fps: 1
   resolution_settings: "720p"
   temporal_encoding_parameters: "default"
+  batch_size: 5
+  ollama_qwen_vl_model_name: "qwen2.5vl:3b"
+
+huggingface_tokens:
+  pyannote_audio: "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"
+
+audio_analysis:
+  speaker_diarization_enabled: true
+
+llm_selection:
+  max_retries: 100
+  min_clips: 1
+  json_processing_model: "DeepSeek-Coder:6.7B-Instruct"

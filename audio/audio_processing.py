@@ -1,13 +1,54 @@
 import subprocess
 import torch
 from faster_whisper import WhisperModel
-from core.config import WHISPER_MODEL
+from core.config import config
 from core.temp_manager import get_temp_path
 from ffmpeg_normalize import FFmpegNormalize
 import logging
 from llm import llm_interaction
-from core.gpu_manager import release_gpu_memory
+from core.gpu_manager import gpu_manager
+import librosa
+import numpy as np
+import soundfile as sf
 
+
+def separate_vocals(input_path: str, output_dir: str) -> str:
+    """Separates vocals from an audio file using Demucs.
+    Note: Demucs requires a separate installation and models.
+    You might need to run 'demucs -d cpu -n htdemucs_ft {input_path} -o {output_dir}' to use it.
+    """
+    # This is a placeholder. Actual Demucs integration would involve calling its API or CLI.
+    # For now, we'll just return the input path as if no separation occurred.
+    separated_vocals_path = f"{output_dir}/htdemucs_ft/{input_path.split('/')[-1].replace('.wav', '')}/vocals.wav"
+    # In a real scenario, you'd run demucs here:
+    # subprocess.run(['demucs', '-d', 'cpu', '-n', 'htdemucs_ft', input_path, '-o', output_dir], check=True)
+    # For demonstration, we'll just copy the original file to simulate output
+    import shutil
+    import os
+    os.makedirs(os.path.dirname(separated_vocals_path), exist_ok=True)
+    shutil.copy(input_path, separated_vocals_path)
+    print(f"Demucs voice separation simulated. Output at: {separated_vocals_path}")
+    return separated_vocals_path
+
+def enhance_audio(input_path: str, output_path: str):
+    """Enhances audio by reducing noise.
+    """
+    # This is a placeholder for a more advanced noise reduction model
+    y, sr = librosa.load(input_path, sr=None)
+    # Simple noise reduction could be implemented with libraries like 'noisereduce'
+    sf.write(output_path, y, sr)
+    return output_path
+
+def mix_audio(main_audio_path: str, background_audio_path: str, output_path: str, bg_volume: float = -20.0):
+    """Mixes main audio with background audio using ffmpeg.
+    """
+    cmd = [
+        'ffmpeg', '-y', '-i', main_audio_path, '-i', background_audio_path,
+        '-filter_complex', f'[1:a]volume={bg_volume}dB[bg];[0:a][bg]amix=inputs=2:duration=first', 
+        output_path
+    ]
+    subprocess.run(cmd, check=True)
+    return output_path
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +102,11 @@ def transcribe_video(video_path: str) -> list[dict]:
                 device = "cpu"
                 compute_type = "int8"
         
-        print(f"Loading faster-whisper model '{WHISPER_MODEL}' on {device}...")
+        print(f"Loading faster-whisper model '{config.get('whisper_model')}' on {device}...")
         
         try:
             model = WhisperModel(
-                WHISPER_MODEL, 
+                config.get('whisper_model'), 
                 device=device, 
                 compute_type=compute_type,
                 cpu_threads=4 if device == "cpu" else 0
@@ -77,7 +118,7 @@ def transcribe_video(video_path: str) -> list[dict]:
                 device = "cpu"
                 compute_type = "int8"
                 model = WhisperModel(
-                    WHISPER_MODEL, 
+                    config.get('whisper_model'), 
                     device=device, 
                     compute_type=compute_type,
                     cpu_threads=4
@@ -87,36 +128,21 @@ def transcribe_video(video_path: str) -> list[dict]:
         
         raw_audio_path = get_temp_path("temp_audio_raw.wav")
         normalized_audio_path = get_temp_path("temp_audio_normalized.wav")
-        vocals_audio_path = get_temp_path("temp_audio_vocals.wav")
+        # vocals_audio_path = get_temp_path("temp_audio_vocals.wav")
 
         extract_audio(video_path, raw_audio_path)
         normalize_audio_loudness(raw_audio_path, normalized_audio_path)
-        # Placeholder for Demucs voice separation
-        # if self.config.get('demucs_enabled', False):
-        #     try:
-        #         from demucs.api import separate_into_vocals_and_music
-        #         vocals_audio_path = separate_into_vocals_and_music(normalized_audio_path)
-        #         print("Demucs voice separation applied.")
-        #     except ImportError:
-        #         print("Demucs not installed. Skipping voice separation.")
-        #     except Exception as demucs_error:
-        #         print(f"Demucs voice separation failed: {demucs_error}. Using normalized audio.")
-        vocals_audio_path = normalized_audio_path
-
-        # Placeholder for audio enhancement and noise reduction
-        # This would involve applying filters or models for noise reduction, equalization, etc.
-        # For now, we'll assume the normalized audio is sufficient.
-
-        # Placeholder for dynamic audio mixing (intro narration, background music)
-        # This would typically happen during the final video editing phase, where audio tracks are combined.
-
-        # Placeholder for optimizing audio levels and EQ
-        # This could involve analyzing the frequency spectrum and adjusting levels based on content type. 
+        
+        # Voice separation
+        separated_vocals_path = separate_vocals(normalized_audio_path, get_temp_path('demucs_output'))
+        
+        # Audio enhancement
+        enhanced_vocals_path = enhance_audio(separated_vocals_path, get_temp_path('enhanced_vocals.wav'))
 
         print(f"Running faster-whisper transcription on {device}...")
         try:
             segments, info = model.transcribe(
-                vocals_audio_path, # Transcribe only vocals
+                enhanced_vocals_path, # Transcribe only vocals
                 word_timestamps=True,
                 condition_on_previous_text=False,
                 vad_filter=True,
@@ -126,7 +152,7 @@ def transcribe_video(video_path: str) -> list[dict]:
             print(f"Transcription failed with VAD enabled: {transcribe_error}")
             print("Retrying without VAD...")
             segments, info = model.transcribe(
-                vocals_audio_path, # Transcribe only vocals
+                enhanced_vocals_path, # Transcribe only vocals
                 word_timestamps=True,
                 condition_on_previous_text=False,
                 vad_filter=False
@@ -156,7 +182,7 @@ def transcribe_video(video_path: str) -> list[dict]:
     finally:
         if model:
             del model
-            release_gpu_memory()
+            gpu_manager.release_gpu_memory()
             print("faster-whisper model unloaded and GPU memory released.")
 
 def analyze_transcript_with_llm(transcript: list[dict]) -> dict:
@@ -184,7 +210,7 @@ def analyze_transcript_with_llm(transcript: list[dict]) -> dict:
     """
     
     try:
-        response = llm_interaction.llm_pass(llm_interaction.LLM_MODEL, [
+        response = llm_interaction.llm_pass(config.get('llm_model'), [
             {"role": "system", "content": "You are an expert in transcript analysis."},
             {"role": "user", "content": llm_prompt.strip()}
         ])
@@ -196,23 +222,31 @@ def analyze_transcript_with_llm(transcript: list[dict]) -> dict:
         print(f"❌ \033[91mFailed to analyze transcript with LLM: {e}\033[0m")
         return {"themes": [], "sentiment": "unknown", "speaker_changes": "not detected", "key_takeaways": []}
 
-def extract_audio_rhythm(audio_path: str) -> dict:
-    """Extracts tempo and beat information from an audio file."""
+def extract_audio_rhythm(audio_path: str, config: dict) -> dict:
+    """Extracts tempo, beats, and speech rhythm patterns from an audio file."""
     try:
         y, sr = librosa.load(audio_path)
 
-        # Extract audio tempo
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-
-        # Detect beat positions
-        onset_env = librosa.onset.onset_detect(y=y, sr=sr)
-        beats = librosa.beat.beat_track(onset_env=onset_env, sr=sr)[1]
+        # Extract audio tempo and beats
+        tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
         beat_times = librosa.frames_to_time(beats, sr=sr)
 
-        return {
+        # Analyze speech rhythm patterns (emphasis detection)
+        rms = librosa.feature.rms(y=y)[0]
+        emphasis_threshold_std = config.get('audio_rhythm', {}).get('emphasis_threshold_std', 1.5)
+        emphasis_threshold = np.mean(rms) + emphasis_threshold_std * np.std(rms)
+        emphasized_segments = np.where(rms > emphasis_threshold)[0]
+        emphasized_times = librosa.frames_to_time(emphasized_segments, sr=sr)
+
+        # Generate rhythm map
+        rhythm_map = {
             'tempo': tempo,
             'beat_times': beat_times.tolist(),
+            'emphasized_times': emphasized_times.tolist(),
+            'emphasis_threshold': emphasis_threshold
         }
+        
+        return rhythm_map
     except Exception as e:
         print(f"Error extracting audio rhythm: {e}")
         return None

@@ -1,17 +1,15 @@
 from agents.base_agent import Agent
 from typing import Dict, Any
 from audio import audio_processing
-from agents.audio_rhythm_agent import AudioRhythmAgent
-from agents.audio_analysis_agent import AudioAnalysisAgent
-from core.config import load_config
-from core.state_manager import set_stage_status, get_stage_status
+from core.config import config
+from core.temp_manager import get_temp_path
 
 class AudioTranscriptionAgent(Agent):
     """Agent responsible for transcribing the video's audio and performing rhythm analysis."""
 
     def __init__(self, state_manager):
         super().__init__("AudioTranscriptionAgent")
-        self.config = load_config()
+        self.config = config
         self.state_manager = state_manager
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -22,6 +20,12 @@ class AudioTranscriptionAgent(Agent):
         
         if processed_video_path is None:
             raise RuntimeError("Processed video path is missing from context. Cannot transcribe.")
+
+        # Extract audio and get path
+        audio_path = get_temp_path("temp_audio_normalized.wav")
+        if not context.get("audio_path"):
+            audio_processing.extract_audio(processed_video_path, audio_path)
+            context["audio_path"] = audio_path
 
         if transcription is None: # Only transcribe if not already loaded from state
             transcription = audio_processing.transcribe_video(processed_video_path)
@@ -34,21 +38,13 @@ class AudioTranscriptionAgent(Agent):
             })
             
             # Analyze transcript with LLM
-            print("Analyzing transcript with LLM...")
+            print("🧠 \u001b[94mAnalyzing transcript with LLM...\u001b[0m")
             llm_analysis = audio_processing.analyze_transcript_with_llm(transcription)
             context.update({"llm_transcript_analysis": llm_analysis})
         else:
             print("⏩ Skipping transcription. Loaded from state.")
             
         print(f"✅ Transcription complete: {len(transcription)} segments found.")
-
-        # Run AudioRhythmAgent
-        audio_rhythm_agent = AudioRhythmAgent(self.config, self.state_manager)
-        audio_rhythm_agent.run(context)
-
-        # Run AudioAnalysisAgent
-        audio_analysis_agent = AudioAnalysisAgent(self.config, self.state_manager)
-        audio_analysis_agent.run(context)
 
         return context
 

@@ -1,5 +1,6 @@
 from typing import Dict, Any
 from llm import llm_interaction
+from core.config import config
 
 def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
     """Parses a user's natural language prompt into structured parameters using an LLM."""
@@ -27,7 +28,7 @@ def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
     """
 
     try:
-        response = llm_interaction.llm_pass(llm_interaction.LLM_MODEL, [
+        response = llm_interaction.llm_pass(config.get('llm_model'), [
             {"role": "system", "content": "You are an AI assistant that extracts structured information from user prompts."},
             {"role": "user", "content": llm_prompt.strip()}
         ])

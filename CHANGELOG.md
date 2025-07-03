@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2] - 2025-07-03
+
+### Added
+
+-   **Expanded Agent Pipeline:** The agent pipeline has been significantly expanded with a host of new agents, each responsible for a specific task in the video analysis and editing process. This modular approach allows for greater flexibility and easier maintenance.
+    -   **`AudioAnalysisAgent`**: Analyzes the audio track for speaker diarization and other audio events.
+    -   **`IntroNarrationAgent`**: Generates an introductory narration for the video.
+    -   **`FramePreprocessingAgent`**: Prepares video frames for analysis (resizing, color correction, etc.).
+    -   **`QwenVisionAgent`**: Uses the Qwen-VL model for visual analysis of video frames.
+    -   **`EngagementAnalysisAgent`**: Analyzes the engagement level of the video by looking at facial expressions, gestures, and other cues.
+    -   **`LayoutDetectionAgent`**: Detects the layout of the video (split-screen, picture-in-picture, etc.).
+    -   **`SpeakerTrackingAgent`**: Tracks the active speaker in the video.
+    -   **`HookIdentificationAgent`**: Identifies potential "hooks" in the video to grab the viewer's attention.
+    -   **`LLMVideoDirectorAgent`**: Uses an LLM to make high-level decisions about the video editing process.
+    -   **`ViralPotentialAgent`**: Analyzes the viral potential of the video.
+    -   **`DynamicEditingAgent`**: Dynamically edits the video based on the analysis from the other agents.
+    -   **`MusicSyncAgent`**: Synchronizes the video edits with the music.
+    -   **`LayoutOptimizationAgent`**: Optimizes the layout of the video for different platforms and devices.
+    -   **`SubtitleAnimationAgent`**: Creates animated subtitles for the video.
+    -   **`ContentEnhancementAgent`**: Enhances the content of the video by adding B-roll, images, and other visual elements.
+    -   **`QualityAssuranceAgent`**: Ensures the quality of the final video.
+-   **New Dependencies:**
+    -   `opencv-contrib-python` for advanced face analysis.
+    -   `sentence-transformers`, `transformers`, `accelerate`, `transformers_stream_generator`, `qwen-vl-utils[decord]`, and `safetensors` for enhanced deep learning capabilities.
+    -   `pyannote.audio` for speaker diarization.
+    -   `deepface` for video analysis.
+    -   `coqui-tts` for text-to-speech.
+    -   `tf-keras` for TensorFlow/Keras compatibility.
+    -   `psutil` for system resource monitoring.
+-   **Development Plan:** A new `plan.md` file has been added, outlining a detailed strategy for improving the reliability of LLM-to-JSON extraction.
+-   **Subtitle Font:** Added `SimSun.ttf` font file for subtitle generation.
+-   **Interactive Session Resume:** The application now interactively prompts the user to resume a previous session if one is detected, giving the user more control over the workflow.
+-   **TensorFlow Logging Control:** Added `os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'` to suppress verbose TensorFlow logging.
+
+### Changed
+
+-   **Configuration Management:**
+    -   `core/config.py` has been completely refactored to use a `Config` class, providing a more modular and robust way to manage configuration.
+    -   `core/config.yaml` has been updated with new model names (`llama3.1:8b`, `qwen2.5vl:3b`), a new `b_roll_assets_dir` (`train2014`), and new sections for `qwen_vision`, `huggingface_tokens`, `audio_analysis`, and `llm_selection`.
+-   **Agent Pipeline:** The agent pipeline in `main.py` has been reordered and updated to use the new `config` object.
+-   **Resource Cleanup:** `llm_interaction.cleanup()` and `temp_manager.cleanup_temp_dir()` are now called on successful completion of the pipeline, ensuring better resource management.
+-   **Dependencies:**
+    -   `opencv-python` has been replaced with `opencv-contrib-python`.
+    -   `scikit-learn` and `librosa` have been updated.
+
+### Fixed
+
+-   **Debugging:** Added a debug print statement for `storyboard_data` to aid in development.
+
+## [4.1.2] - 2025-07-03
+
+### Added
+
+-   **Progress Bar:** Integrated `tqdm` to display a progress bar during the agent pipeline execution, providing better visual feedback to the user.
+
+## [4.1.1] - 2025-07-03
+
+### Added
+
+-   **Unit Testing:** Introduced a `tests/` directory with `pytest` for unit testing, starting with tests for the `terminate_existing_processes` function. This is a major step towards improving code quality and stability.
+-   **Project Analysis:** A new `REPORT.md` file provides a detailed analysis of the project's state, including identified problems and areas for improvement.
+-   **Expanded Agent Pipeline:** The agent pipeline in `main.py` has been significantly expanded with numerous new agents, indicating a major refactoring towards a more granular and state-driven architecture.
+
+### Removed
+
+-   **CLI Script:** The `cli.py` file has been removed, suggesting a change in the application's entry point.
+
 ## [4.1] - 2025-07-02
 
 ### Added

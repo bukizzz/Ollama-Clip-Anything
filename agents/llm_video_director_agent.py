@@ -1,13 +1,15 @@
-from core.base_agent import BaseAgent
-from core.state_manager import set_stage_status, get_stage_status
+from agents.base_agent import Agent
+from core.state_manager import set_stage_status
 from llm import llm_interaction
 import json
 
-class LLMVideoDirectorAgent(BaseAgent):
+class LLMVideoDirectorAgent(Agent):
     def __init__(self, config, state_manager):
-        super().__init__(config, state_manager)
+        super().__init__("LLMVideoDirectorAgent")
+        self.config = config
+        self.state_manager = state_manager
 
-    def run(self, context):
+    def execute(self, context):
         # Gather all relevant analysis results from the context
         transcription = context.get('transcription')
         storyboard_data = context.get('storyboard_data')
@@ -22,7 +24,7 @@ class LLMVideoDirectorAgent(BaseAgent):
         if not transcription or not qwen_vision_analysis_results or not content_alignment_data:
             self.log_error("Missing essential analysis results for LLM Video Director. Skipping.")
             set_stage_status('llm_video_director', 'failed', {'reason': 'Missing essential data'})
-            return False
+            return context
 
         self.log_info("Starting LLM Video Director orchestration...")
         set_stage_status('llm_video_director', 'running')
@@ -77,7 +79,7 @@ class LLMVideoDirectorAgent(BaseAgent):
             - "viral_potential_score": An estimated score for viral potential (0-10).
             """
 
-            self.log_info("Sending comprehensive data to LLM for video direction...")
+            self.log_info("🧠 \u001b[94mSending comprehensive data to LLM for video direction...\u001b[0m")
             response = llm_interaction.llm_pass(
                 llm_interaction.LLM_MODEL,
                 [
@@ -98,4 +100,4 @@ class LLMVideoDirectorAgent(BaseAgent):
         except Exception as e:
             self.log_error(f"Error during LLM Video Director orchestration: {e}")
             set_stage_status('llm_video_director', 'failed', {'reason': str(e)})
-            return False
+            return context

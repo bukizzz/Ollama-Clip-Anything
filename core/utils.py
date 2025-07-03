@@ -6,7 +6,7 @@ import platform
 import ollama
 import psutil
 from core.temp_manager import get_temp_path
-from core.config import LLM_MODEL
+from core.config import config
 
 def convert_av1_to_hevc(video_path: str) -> str:
     """Converts an AV1 video to H.265 (HEVC) using FFmpeg."""
@@ -17,27 +17,27 @@ def convert_av1_to_hevc(video_path: str) -> str:
         result = subprocess.run(['nvidia-smi'], capture_output=True)
         if result.returncode == 0:
             encoder = "hevc_nvenc"
-            print("  ⚙️ Using hevc_nvenc (NVIDIA GPU) for AV1 conversion.")
+            print("\n⚙️ Using NVENC (NVIDIA GPU) for AV1 conversion.")
         else:
             encoder = "libx265"
-            print("  ⚙️ Using libx265 (CPU) for AV1 conversion.")
+            print("\n⚙️ Using CPU for AV1 conversion.")
     except FileNotFoundError:
         encoder = "libx265"
-        print("  ⚠️ nvidia-smi not found. Using libx265 (CPU) for AV1 conversion.")
+        print("\n⚠️ NVENC not found. Using CPU for AV1 conversion.")
 
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
         "-c:v", encoder, "-preset", "medium", "-crf", "23",
         "-c:a", "copy", output_path
     ]
-    print(f"⚙️ Running FFmpeg to convert AV1 to HEVC: {' '.join(cmd)}")
+    print(f"\n⚙️ Running FFmpeg to convert AV1 to HEVC: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print(f"✅ Successfully converted {video_path} to {output_path}")
+        print(f"\n✅ Successfully converted {video_path} to {output_path}")
         return output_path
     except subprocess.CalledProcessError as e:
-        print(f"❌ FFmpeg conversion failed. Stderr: {e.stderr}")
-        raise RuntimeError(f"Failed to convert AV1 video: {e}")
+        print(f"\n❌ FFmpeg conversion failed. Stderr: {e.stderr}")
+        raise RuntimeError(f"\nFailed to convert AV1 video: {e}")
 
 def terminate_existing_processes():
     """Terminates any other running instances of the current script."""
@@ -48,11 +48,11 @@ def terminate_existing_processes():
         try:
             if proc.info['name'] == 'python' and proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
                 if proc.info['pid'] != current_pid:
-                    print(f"🧹 Found existing main.py process (PID: {proc.info['pid']}). Terminating...")
+                    print(f"\n🧹 Found existing main.py process (PID: {proc.info['pid']}). Terminating...")
                     proc.terminate()
                     proc.wait(timeout=5) # Wait for process to terminate
                     if proc.is_running():
-                        print(f"💀 Process {proc.info['pid']} did not terminate gracefully, killing...")
+                        print(f"\n💀 Process {proc.info['pid']} did not terminate gracefully, killing...")
                         proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
@@ -68,7 +68,7 @@ def get_video_info(video_path: str) -> dict:
         data = json.loads(result.stdout)
         video_stream = next(s for s in data['streams'] if s['codec_type'] == 'video')
         if video_stream['codec_name'] == 'av1':
-            print("⚠️  AV1 video codec detected. Attempting to convert to H.265 (HEVC)...")
+            print("\n⚠️  AV1 video codec detected. Attempting to convert to H.265 (HEVC)...")
             converted_video_path = convert_av1_to_hevc(video_path)
             # Update video_path to the converted video for further processing
             video_path = converted_video_path
@@ -89,103 +89,103 @@ def get_video_info(video_path: str) -> dict:
         }
         return video_info, video_path
     except (subprocess.CalledProcessError, StopIteration, json.JSONDecodeError) as e:
-        raise RuntimeError(f"Failed to probe video info for {video_path}: {e}")
+        raise RuntimeError(f"\nFailed to probe video info for {video_path}: {e}")
 
 def system_checks():
     """Performs and prints results of system checks like disk space and GPU."""
     # Check disk space
     try:
         free_space = shutil.disk_usage('.').free / (1024**3)
-        print(f"💾 Available disk space: {free_space:.1f}GB")
-        if free_space < 5:
-            print("⚠️  Warning: Low disk space (< 5GB).")
+        print(f"\n💾 Available disk space: {free_space:.1f}GB")
+        if free_space < 20:
+            print("\n⚠️  Warning: Low disk space (< 20GB).")
     except Exception as e:
-        print(f"❌ Could not check disk space: {e}")
+        print(f"\n❌ Could not check disk space: {e}")
 
     # Check for FFmpeg
     try:
-        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
-        print("✅ FFmpeg is installed and accessible.")
+        subprocess.run([config.get('ffmpeg_path'), "-version"], capture_output=True, check=True)
+        print("\n✅ FFmpeg is installed and accessible.")
     except (FileNotFoundError, subprocess.CalledProcessError):
-        print("❌ CRITICAL: FFmpeg not found. Please install it and ensure it's in your system's PATH.")
+        print("\n❌ CRITICAL: FFmpeg not found. Please install it and ensure it's in your system's PATH.")
         
     # Check for Ollama service
     try:
-        client = ollama.Client(host='http://localhost:11434')
+        client = ollama.Client(host=config.get('llm.api_keys.ollama'))
         client.list() # This will raise an exception if Ollama is not running
-        print("✅ Ollama service is running.")
+        print("\n✅ Ollama service is running.")
     except Exception as e:
-        print(f"❌ CRITICAL: Ollama service not found or not reachable at http://localhost:11434. Please ensure Ollama is installed and running. Error: {e}")
+        print(f"\n❌ CRITICAL: Ollama service not found or not reachable at http://localhost:11434. Please ensure Ollama is installed and running. Error: \n{e}")
         return # Exit if Ollama service is not running
 
     # Check for LLM model availability
     try:
-        client = ollama.Client(host='http://localhost:11434')
+        client = ollama.Client(host=config.get('llm.api_keys.ollama'))
         models = client.list()['models']
-        if any(model['name'] == LLM_MODEL for model in models):
-            print(f"✅ LLM model '{LLM_MODEL}' is available.")
+        if any(model['name'] == config.get('llm_model') for model in models):
+            print(f"\n✅ '{config.get('llm_model')}' is available.")
         else:
-            print(f"❌ CRITICAL: LLM model '{LLM_MODEL}' not found. Please download it using 'ollama pull {LLM_MODEL}'.")
+            print(f"\n❌ CRITICAL: '{config.get('llm_model')}' not found. Please download it using 'ollama pull {config.get('llm_model')}'.")
     except Exception as e:
-        print(f"❌ CRITICAL: Could not check LLM model availability. Error: {e}")
+        print(f"\n❌ CRITICAL: Could not check LLM model availability. Error: {e}")
 
     # Check for PyTorch
     try:
         import torch
-        print(f"✅ PyTorch is installed (version: {torch.__version__}).")
+        print(f"\n✅ PyTorch is installed (version: {torch.__version__}).")
         if torch.cuda.is_available():
-            print(f"  ⚡ CUDA is available (version: {torch.version.cuda}).")
+            print(f"\n⚡ CUDA is available (version: {torch.version.cuda}).")
         else:
-            print("  🐢 CUDA is NOT available. Processing will use CPU.")
+            print("\n🐢 CUDA is NOT available. Processing will use CPU.")
     except ImportError:
-        print("❌ CRITICAL: PyTorch is not installed. Please install it (e.g., pip install torch torchvision torchaudio).")
+        print("❌\nCRITICAL: PyTorch is not installed. Please install it (e.g., pip install torch torchvision torchaudio).")
     except Exception as e:
-        print(f"❌ Error checking PyTorch: {e}")
+        print(f"❌\nError checking PyTorch: {e}")
 
     # Check for OpenCV
     try:
         import cv2
-        print(f"✅ OpenCV is installed (version: {cv2.__version__}).")
+        print(f"\n✅ OpenCV is installed (version: {cv2.__version__}).")
     except ImportError:
-        print("❌ CRITICAL: OpenCV (opencv-python) is not installed. Please install it (e.g., pip install opencv-python).")
+        print("\n❌ CRITICAL: OpenCV is not installed.")
     except Exception as e:
-        print(f"❌ Error checking OpenCV: {e}")
+        print(f"\n❌ Error checking OpenCV:\n{e}")
 
     # Check for MediaPipe
     try:
         import mediapipe
         print(f"✅ MediaPipe is installed (version: {mediapipe.__version__}).")
     except ImportError:
-        print("❌ CRITICAL: MediaPipe is not installed. Please install it (e.g., pip install mediapipe).")
+        print("❌ CRITICAL: MediaPipe is not installed.")
     except Exception as e:
-        print(f"❌ Error checking MediaPipe: {e}")
+        print(f"❌ Error checking MediaPipe:\n{e}")
 
     # Check for spaCy model
     try:
         import spacy
         spacy.load("en_core_web_sm")
-        print("✅ spaCy 'en_core_web_sm' model is loaded.")
+        print("✅ spaCy model is loaded.")
     except OSError:
-        print("❌ CRITICAL: spaCy 'en_core_web_sm' model not found. Please download it (python -m spacy download en_core_web_sm).")
+        print("❌ CRITICAL: spaCy model not found.")
     except ImportError:
-        print("❌ CRITICAL: spaCy is not installed. Please install it (e.g., pip install spacy).")
+        print("❌ CRITICAL: spaCy is not installed.")
     except Exception as e:
-        print(f"❌ Error checking spaCy: {e}")
+        print(f"❌ Error checking spaCy:\n{e}")
 
 def print_system_info():
     """Prints detailed system information for debugging purposes."""
-    print("\n🖥️ \u001b[94mSystem Information:\u001b[0m")
+    print("\n\n🖥️ \u001b[94mSystem Information:\u001b[0m")
     print(f"   💻 Operating System: {platform.system()} {platform.release()} ({platform.version()})")
     print(f"   🏗️ Architecture: {platform.machine()}")
     print(f"   🐍 Python Version: {platform.python_version()} ({platform.python_compiler()})")
-    print(f"   🧠 Processor: {platform.processor()}")
+    print(f"   🧠 Processor: {platform.processor()}\n")
     try:
         import psutil
-        print(f"   💾 Total RAM: {psutil.virtual_memory().total / (1024**3):.2f} GB")
+        print(f"\n   💾 Total RAM: {psutil.virtual_memory().total / (1024**3):.2f} GB")
     except ImportError:
-        print("   ℹ️ (Install 'psutil' for more RAM info)")
+        print("\n   ℹ️ (Install 'psutil' for more RAM info)")
     except Exception as e:
-        print(f"   ❌ Error getting RAM info: {e}")
+        print(f"\n   ❌ Error getting RAM info:\n{e}")
     
     try:
         import torch

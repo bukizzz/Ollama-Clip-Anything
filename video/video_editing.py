@@ -3,21 +3,14 @@ import logging
 import time
 from typing import List, Dict, Tuple, Optional
 
-from moviepy.editor import VideoFileClip
-from tqdm import tqdm
 
-from core.temp_manager import get_temp_path
-from core.config import OUTPUT_DIR, CLIP_PREFIX, VIDEO_ENCODER, FFMPEG_GLOBAL_PARAMS
-import core.config
+from core.config import config
 from core.ffmpeg_command_logger import FFMPEGCommandLogger
-from video.frame_processor import FrameProcessor
-from video.scene_detection import SceneDetector
 from analysis.analysis_and_reporting import create_processing_report, save_processing_report
-import librosa 
-from audio.audio_processing import extract_audio 
 from video.clip_enhancer import create_enhanced_individual_clip 
+from video.tracking_manager import TrackingManager
 
-tqdm.disable = True
+#tqdm.disable = True
 
 # Configure MoviePy's logger to capture FFmpeg commands
 logging.setLoggerClass(FFMPEGCommandLogger)
@@ -33,8 +26,6 @@ if not logger.handlers:
 
 
 
-
-
 def batch_create_enhanced_clips(
     original_video_path: str, 
     clips_data: List[Dict], 
@@ -44,6 +35,8 @@ def batch_create_enhanced_clips(
     tracking_manager,
     audio_rhythm_data: Dict, # New parameter
     llm_cut_decisions: List[Dict], # New parameter
+    speaker_tracking_results: Dict, # New parameter
+    video_analysis: Dict,
     logger: Optional[logging.Logger] = None, 
     custom_clip_themes: Optional[List[Dict]] = None, 
     **enhancement_options
@@ -61,9 +54,11 @@ def batch_create_enhanced_clips(
                 original_video_path, clip_data, i, video_info, 
                 transcript, processing_settings,
                 tracking_manager,
-                OUTPUT_DIR,
-                audio_rhythm_data=audio_rhythm_data, # Pass new parameter
-                llm_cut_decisions=llm_cut_decisions # Pass new parameter
+                OUTPUT_DIR=config.get('output_dir'),
+                audio_rhythm_data=audio_rhythm_data, 
+                llm_cut_decisions=llm_cut_decisions, 
+                speaker_tracking_results=speaker_tracking_results,
+                video_analysis=video_analysis
             )
             created_clips.append(clip_path)
         except Exception as e:
@@ -76,8 +71,6 @@ def batch_create_enhanced_clips(
     
     return created_clips, failed_clips
 
-from video.tracking_manager import TrackingManager
-
 def batch_process_with_analysis(
     video_path: str,
     clips_data: List[Dict],
@@ -87,6 +80,7 @@ def batch_process_with_analysis(
     video_analysis: Dict, 
     audio_rhythm_data: Dict, # New parameter
     llm_cut_decisions: List[Dict], # New parameter
+    speaker_tracking_results: Dict, # New parameter
     custom_settings: Optional[Dict] = None
 ) -> Tuple[List[str], Dict]:
     """Complete batch processing pipeline with analysis and optimization"""
@@ -109,8 +103,10 @@ def batch_process_with_analysis(
         video_info, 
         processing_settings, 
         tracking_manager,
-        audio_rhythm_data, # Pass new parameter
-        llm_cut_decisions # Pass new parameter
+        audio_rhythm_data=audio_rhythm_data, 
+        llm_cut_decisions=llm_cut_decisions, 
+        speaker_tracking_results=speaker_tracking_results,
+        video_analysis=video_analysis
     )
 
     

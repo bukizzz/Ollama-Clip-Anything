@@ -1,23 +1,26 @@
 import os
 import cv2
-from core.base_agent import BaseAgent
-from core.state_manager import set_stage_status, get_stage_status
+from agents.base_agent import Agent
+from core.state_manager import set_stage_status
 from core.temp_manager import get_temp_path
-from core.config import QWEN_VISION_CONFIG
 
-class FramePreprocessingAgent(BaseAgent):
-    def __init__(self, config, state_manager):
-        super().__init__(config, state_manager)
-        self.qwen_vision_config = QWEN_VISION_CONFIG
+class FramePreprocessingAgent(Agent):
+    def __init__(self, agent_config, state_manager):
+        super().__init__("FramePreprocessingAgent")
+        self.config = agent_config
+        self.state_manager = state_manager
+        self.qwen_vision_config = self.config.get('qwen_vision')
 
-    def run(self, context):
+    def execute(self, context):
         video_path = context.get('processed_video_path')
         if not video_path or not os.path.exists(video_path):
             self.log_error("Processed video path not found in context or does not exist.")
             set_stage_status('frame_preprocessing', 'failed', {'reason': 'Missing or invalid video path'})
-            return False
+            context['frame_preprocessing_status'] = 'failed'
+            context['frame_preprocessing_error'] = 'Missing or invalid video path'
+            return context
 
-        self.log_info(f"Starting frame preprocessing for {video_path}")
+        self.log_info("📸 Starting frame preprocessing...")
         set_stage_status('frame_preprocessing', 'running')
 
         try:
@@ -62,9 +65,11 @@ class FramePreprocessingAgent(BaseAgent):
             self.log_info(f"Extracted {len(extracted_frames_info)} frames.")
             context['extracted_frames_info'] = extracted_frames_info
             set_stage_status('frame_feature_extraction_complete', 'complete', {'num_frames': len(extracted_frames_info)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during frame preprocessing: {e}")
             set_stage_status('frame_preprocessing', 'failed', {'reason': str(e)})
-            return False
+            context['frame_preprocessing_status'] = 'failed'
+            context['frame_preprocessing_error'] = str(e)
+            return context

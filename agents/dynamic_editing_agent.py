@@ -1,72 +1,56 @@
-from core.base_agent import BaseAgent
-from core.state_manager import set_stage_status, get_stage_status
+from agents.base_agent import Agent
+from core.state_manager import set_stage_status
 
-class DynamicEditingAgent(BaseAgent):
+class DynamicEditingAgent(Agent):
     def __init__(self, config, state_manager):
-        super().__init__(config, state_manager)
+        super().__init__("DynamicEditingAgent")
+        self.config = config
+        self.state_manager = state_manager
 
-    def run(self, context):
-        clips = context.get('clips')
-        audio_rhythm_data = context.get('audio_rhythm_data')
-        engagement_analysis_results = context.get('engagement_analysis_results')
-        llm_cut_decisions = context.get('llm_cut_decisions')
+    def execute(self, context):
+        clips = context.get('clips', [])
+        audio_rhythm = context.get('audio_rhythm_data', {})
+        engagement = context.get('engagement_analysis_results', [])
+        llm_director_cuts = context.get('llm_cut_decisions', [])
 
         if not clips:
-            self.log_error("No clips found for dynamic editing.")
-            set_stage_status('dynamic_editing', 'failed', {'reason': 'No clips to edit'})
-            return False
+            self.log_error("No clips for dynamic editing.")
+            set_stage_status('dynamic_editing', 'skipped', {'reason': 'No clips'})
+            return context
 
-        self.log_info("Starting dynamic editing agent...")
+        self.log_info("Generating dynamic editing decisions...")
         set_stage_status('dynamic_editing', 'running')
 
         try:
-            # This agent primarily influences how clips are processed in video_editing.py
-            # It generates editing decisions that will be consumed by the video editing module.
-            
-            # For now, we'll just log the decisions that would be made.
             editing_decisions = []
-
             for clip in clips:
-                clip_start = clip['start']
-                clip_end = clip['end']
-
-                # Example: Suggest a zoom effect at high engagement moments
-                for engagement_metric in engagement_analysis_results:
-                    if clip_start <= engagement_metric['timestamp'] <= clip_end and \
-                       engagement_metric['engagement_score'] > 0.8: # High engagement threshold
-                        editing_decisions.append({
-                            'type': 'zoom_effect',
-                            'timestamp': engagement_metric['timestamp'],
-                            'intensity': 'high',
-                            'reason': 'high engagement'
-                        })
+                start, end = clip['start'], clip['end']
                 
-                # Example: Suggest a cut based on LLM video director recommendations
-                for llm_decision in llm_cut_decisions:
-                    if clip_start <= llm_decision['start_time'] <= clip_end:
-                        editing_decisions.append({
-                            'type': 'llm_cut',
-                            'start_time': llm_decision['start_time'],
-                            'end_time': llm_decision['end_time'],
-                            'reason': llm_decision['reason']
-                        })
+                # Optimal cut points from LLM Director
+                for cut in llm_director_cuts:
+                    if start <= cut['start_time'] <= end:
+                        editing_decisions.append({'time': cut['start_time'], 'type': 'cut', 'reason': cut['reason']})
 
-                # Example: Suggest beat-matched transitions (simplified)
-                if audio_rhythm_data and 'beat_times' in audio_rhythm_data:
-                    for beat_time in audio_rhythm_data['beat_times']:
-                        if clip_start <= beat_time <= clip_end and abs(clip_start - beat_time) < 0.5: # Close to clip start
-                             editing_decisions.append({
-                                'type': 'beat_matched_transition',
-                                'timestamp': beat_time,
-                                'reason': 'audio beat alignment'
-                            })
+                # Dynamic effects from engagement and rhythm
+                for eng in engagement:
+                    if start <= eng['timestamp'] <= end and eng['engagement_score'] > 0.75:
+                        editing_decisions.append({'time': eng['timestamp'], 'type': 'zoom_in', 'intensity': 'medium'})
+                
+                if 'beat_times' in audio_rhythm:
+                    for beat in audio_rhythm['beat_times']:
+                        if start <= beat <= end:
+                            # Add a small effect on every beat
+                            editing_decisions.append({'time': beat, 'type': 'pulse', 'intensity': 'low'})
 
+            # Pacing optimization (conceptual)
+            # Could involve adjusting clip speed or adding/removing small segments based on engagement flow
+            
             context['dynamic_editing_decisions'] = editing_decisions
-            self.log_info(f"Dynamic editing decisions generated. {len(editing_decisions)} decisions made.")
+            self.log_info(f"Generated {len(editing_decisions)} dynamic editing decisions.")
             set_stage_status('dynamic_editing_complete', 'complete', {'num_decisions': len(editing_decisions)})
             return True
 
         except Exception as e:
-            self.log_error(f"Error during dynamic editing: {e}")
+            self.log_error(f"Error in DynamicEditingAgent: {e}")
             set_stage_status('dynamic_editing', 'failed', {'reason': str(e)})
-            return False
+            return context

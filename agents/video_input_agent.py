@@ -1,15 +1,17 @@
 
+import argparse
 from agents.base_agent import Agent
 from typing import Dict, Any
 from video import video_input
 from core import utils
-import argparse
+
 
 class VideoInputAgent(Agent):
     """Agent responsible for handling video input and initial video analysis."""
 
-    def __init__(self):
+    def __init__(self, state_manager):
         super().__init__("VideoInputAgent")
+        self.state_manager = state_manager
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         print("\n1. Getting input video...")

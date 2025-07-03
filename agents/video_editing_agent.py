@@ -1,24 +1,23 @@
 from agents.base_agent import Agent
 from typing import Dict, Any
 from video import video_editing
-from video.tracking_manager import TrackingManager
 
 
 class VideoEditingAgent(Agent):
     """Agent responsible for creating enhanced video clips."""
 
-    def __init__(self):
+    def __init__(self, config, state_manager):
         super().__init__("VideoEditingAgent")
-        tracking_manager = TrackingManager()
-        self.face_tracker = tracking_manager.get_face_tracker()
-        self.object_tracker = tracking_manager.get_object_tracker()
+        self.config = config
+        self.state_manager = state_manager
+        
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         processed_video_path = context.get("processed_video_path")
         clips = context.get("clips")
         transcription = context.get("transcription")
         
-        current_stage = context.get("current_stage")
+        # current_stage = context.get("current_stage")
         processing_settings = context.get("processing_settings")
         video_info = context.get("video_info") # Get from context
         video_analysis = context.get("video_analysis") # Get from context
@@ -54,7 +53,9 @@ class VideoEditingAgent(Agent):
             video_info=video_info, # Pass video_info
             processing_settings=processing_settings, # Pass processing_settings
             video_analysis=video_analysis, # Pass video_analysis
-             
+            audio_rhythm_data=context.get("audio_rhythm_data"),
+            llm_cut_decisions=context.get("llm_cut_decisions"),
+            speaker_tracking_results=context.get("speaker_tracking_results")
         )
         context.update({
             "created_clips": created_clips,
