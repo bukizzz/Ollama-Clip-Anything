@@ -8,6 +8,7 @@ class LayoutManager:
             "single_person_focus": self._apply_single_person_focus,
             "multi_person_grid": self._apply_multi_person_grid,
             "presentation_with_speaker": self._apply_presentation_with_speaker,
+            "two_person_split_screen": self._apply_two_person_split_screen,
         }
 
     def apply_layout(self, frame: np.ndarray, layout_type: str, output_w: int, output_h: int, face_tracker, object_tracker, active_speaker_id: Optional[str] = None, engagement_metrics: Optional[List[Dict]] = None, frame_timestamp_in_seconds: float = 0.0) -> np.ndarray:
@@ -94,3 +95,45 @@ class LayoutManager:
         main_content = cv2.resize(screen_area, (output_w, output_h))
         main_content[-speaker_inset.shape[0]:, -speaker_inset.shape[1]:] = speaker_inset
         return main_content
+
+    def _apply_two_person_split_screen(self, frame: np.ndarray, output_w: int, output_h: int, face_tracker, object_tracker, active_speaker_id: Optional[str], engagement_metrics: Optional[List[Dict]], frame_timestamp_in_seconds: float) -> np.ndarray:
+        faces = face_tracker.detect_faces_in_frame(frame) if face_tracker else []
+        
+        if len(faces) == 2:
+            # Sort faces by their x-coordinate to ensure consistent left/right placement
+            faces = sorted(faces, key=lambda f: f['bbox'][0])
+
+            # Calculate dimensions for each half of the split screen
+            half_w = output_w // 2
+            
+            # Create an empty canvas for the split screen
+            split_screen_frame = np.zeros((output_h, output_w, 3), dtype=np.uint8)
+
+            for i, face in enumerate(faces):
+                x, y, w, h = face['bbox']
+                
+                # Extract the region of interest around the face
+                # Add some padding around the face for better framing
+                padding_x = int(w * 0.2)
+                padding_y = int(h * 0.2)
+                
+                crop_x1 = max(0, x - padding_x)
+                crop_y1 = max(0, y - padding_y)
+                crop_x2 = min(frame.shape[1], x + w + padding_x)
+                crop_y2 = min(frame.shape[0], y + h + padding_y)
+                
+                face_roi = frame[crop_y1:crop_y2, crop_x1:crop_x2]
+
+                # Resize the face ROI to fit into half of the output screen
+                resized_face_roi = cv2.resize(face_roi, (half_w, output_h))
+
+                # Place the resized face ROI into the split screen frame
+                if i == 0: # Left side
+                    split_screen_frame[:, :half_w] = resized_face_roi
+                else: # Right side
+                    split_screen_frame[:, half_w:] = resized_face_roi
+            
+            return split_screen_frame
+        else:
+            # Fallback if not exactly two faces, or if face_tracker is not available
+            return self._center_crop_and_resize(frame, output_w, output_h)

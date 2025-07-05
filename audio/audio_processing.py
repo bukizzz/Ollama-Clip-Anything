@@ -10,33 +10,57 @@ from core.gpu_manager import gpu_manager
 import librosa
 import numpy as np
 import soundfile as sf
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any
+import shutil
+import os
 
+logger = logging.getLogger(__name__)
 
 def separate_vocals(input_path: str, output_dir: str) -> str:
     """Separates vocals from an audio file using Demucs.
     Note: Demucs requires a separate installation and models.
     You might need to run 'demucs -d cpu -n htdemucs_ft {input_path} -o {output_dir}' to use it.
+    
+    This is currently a placeholder implementation. In a real scenario, you would
+    integrate with the Demucs library or call its CLI tool.
+    For demonstration, it copies the original file to simulate the output.
     """
-    # This is a placeholder. Actual Demucs integration would involve calling its API or CLI.
-    # For now, we'll just return the input path as if no separation occurred.
-    separated_vocals_path = f"{output_dir}/htdemucs_ft/{input_path.split('/')[-1].replace('.wav', '')}/vocals.wav"
-    # In a real scenario, you'd run demucs here:
-    # subprocess.run(['demucs', '-d', 'cpu', '-n', 'htdemucs_ft', input_path, '-o', output_dir], check=True)
-    # For demonstration, we'll just copy the original file to simulate output
-    import shutil
-    import os
+    separated_vocals_path = f"{output_dir}/htdemucs_ft/{os.path.basename(input_path).replace('.wav', '')}/vocals.wav"
+    # In a real scenario, you'd run demucs here, e.g.:
+    # try:
+    #     subprocess.run(['demucs', '-d', 'cpu', '-n', 'htdemucs_ft', input_path, '-o', output_dir], check=True)
+    # except FileNotFoundError:
+    #     logger.error("Demucs command not found. Please ensure Demucs is installed and in your PATH.")
+    #     raise
+    # except subprocess.CalledProcessError as e:
+    #     logger.error(f"Demucs failed with error: {e.stderr}")
+    #     raise
+    
     os.makedirs(os.path.dirname(separated_vocals_path), exist_ok=True)
     shutil.copy(input_path, separated_vocals_path)
-    print(f"Demucs voice separation simulated. Output at: {separated_vocals_path}")
+    logger.info(f"Demucs voice separation simulated. Output at: {separated_vocals_path}")
     return separated_vocals_path
 
 def enhance_audio(input_path: str, output_path: str):
     """Enhances audio by reducing noise.
+    
+    This is currently a placeholder implementation. For actual noise reduction,
+    consider using libraries like 'noisereduce' or more advanced audio processing models.
     """
-    # This is a placeholder for a more advanced noise reduction model
-    y, sr = librosa.load(input_path, sr=None)
-    # Simple noise reduction could be implemented with libraries like 'noisereduce'
-    sf.write(output_path, y, sr)
+    try:
+        y, sr = librosa.load(input_path, sr=None)
+        # Example of where noise reduction logic would go:
+        # from noisereduce import reduce_noise
+        # reduced_noise_audio = reduce_noise(y=y, sr=sr, ...)
+        # sf.write(output_path, reduced_noise_audio, sr)
+        sf.write(output_path, y, sr) # Currently just copies the audio
+        logger.info(f"Audio enhancement simulated. Output at: {output_path}")
+    except Exception as e:
+        logger.error(f"Error enhancing audio: {e}")
+        # Fallback to copying if enhancement fails
+        shutil.copy(input_path, output_path)
+        logger.info("Falling back to copying original audio due to enhancement failure.")
     return output_path
 
 def mix_audio(main_audio_path: str, background_audio_path: str, output_path: str, bg_volume: float = -20.0):
@@ -47,10 +71,15 @@ def mix_audio(main_audio_path: str, background_audio_path: str, output_path: str
         '-filter_complex', f'[1:a]volume={bg_volume}dB[bg];[0:a][bg]amix=inputs=2:duration=first', 
         output_path
     ]
-    subprocess.run(cmd, check=True)
+    logger.info(f"Mixing audio: {main_audio_path} with {background_audio_path}...")
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        logger.info("Audio mixing complete.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"FFmpeg audio mixing failed. Stderr: {e.stderr}")
+        raise
     return output_path
 
-logger = logging.getLogger(__name__)
 
 def extract_audio(video_path: str, audio_path: str) -> None:
     """Extract audio from video using FFmpeg."""
@@ -59,16 +88,19 @@ def extract_audio(video_path: str, audio_path: str) -> None:
         "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", # Use WAV for Whisper
         "-avoid_negative_ts", "make_zero", audio_path
     ]
-    print("Running FFmpeg audio extraction...")
+    logger.info("Running FFmpeg audio extraction...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        logger.error("FFmpeg stderr:\n", result.stderr)
+        logger.error(f"FFmpeg stderr:\n{result.stderr}")
         raise RuntimeError("FFmpeg audio extraction failed.")
+    logger.info("FFmpeg audio extraction complete.")
 
 def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> None:
     """Normalize audio loudness using ffmpeg-normalize."""
-    print(f"Normalizing audio loudness for {input_audio_path}...")
+    logger.info(f"Normalizing audio loudness for {input_audio_path}...")
     norm = FFmpegNormalize()
+    # Pylance might show errors here due to incomplete type hints in the ffmpeg-normalize library,
+    # but these are the correct attributes to set for configuration.
     norm.loudness_target = -23.0  # EBU R128 standard
     norm.true_peak_target = -1.0
     norm.loudness_range_target = 10.0 # Added to address the warning
@@ -76,12 +108,12 @@ def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> N
     norm.add_media_file(input_audio_path, output_audio_path)
     try:
         norm.run_normalization()
-        print("Audio loudness normalization complete.")
+        logger.info("Audio loudness normalization complete.")
     except Exception as e:
-        print(f"Audio loudness normalization failed: {e}")
+        logger.error(f"Audio loudness normalization failed: {e}")
         # Fallback to just copying the file if normalization fails
-        subprocess.run(["cp", input_audio_path, output_audio_path], check=True)
-        print("Falling back to copying original audio due to normalization failure.")
+        shutil.copy(input_audio_path, output_audio_path)
+        logger.info("Falling back to copying original audio due to normalization failure.")
 
 def transcribe_video(video_path: str) -> list[dict]:
     """Transcribe video using faster-whisper with precise timing."""
@@ -95,14 +127,14 @@ def transcribe_video(video_path: str) -> list[dict]:
                 torch.cuda.current_device()
                 device = "cuda"
                 compute_type = "float16"
-                print("CUDA detected and working, using GPU...")
+                logger.info("CUDA detected and working, using GPU...")
             except Exception as cuda_error:
-                print(f"CUDA available but not working properly: {cuda_error}")
-                print("Falling back to CPU...")
+                logger.warning(f"CUDA available but not working properly: {cuda_error}")
+                logger.info("Falling back to CPU...")
                 device = "cpu"
                 compute_type = "int8"
         
-        print(f"Loading faster-whisper model '{config.get('whisper_model')}' on {device}...")
+        logger.info(f"Loading faster-whisper model '{config.get('whisper_model')}' on {device}...")
         
         try:
             model = WhisperModel(
@@ -112,9 +144,9 @@ def transcribe_video(video_path: str) -> list[dict]:
                 cpu_threads=4 if device == "cpu" else 0
             )
         except Exception as model_error:
-            print(f"Failed to load model on {device}: {model_error}")
+            logger.error(f"Failed to load model on {device}: {model_error}")
             if device == "cuda":
-                print("Trying CPU fallback...")
+                logger.info("Trying CPU fallback...")
                 device = "cpu"
                 compute_type = "int8"
                 model = WhisperModel(
@@ -128,7 +160,6 @@ def transcribe_video(video_path: str) -> list[dict]:
         
         raw_audio_path = get_temp_path("temp_audio_raw.wav")
         normalized_audio_path = get_temp_path("temp_audio_normalized.wav")
-        # vocals_audio_path = get_temp_path("temp_audio_vocals.wav")
 
         extract_audio(video_path, raw_audio_path)
         normalize_audio_loudness(raw_audio_path, normalized_audio_path)
@@ -139,7 +170,7 @@ def transcribe_video(video_path: str) -> list[dict]:
         # Audio enhancement
         enhanced_vocals_path = enhance_audio(separated_vocals_path, get_temp_path('enhanced_vocals.wav'))
 
-        print(f"Running faster-whisper transcription on {device}...")
+        logger.info(f"Running faster-whisper transcription on {device}...")
         try:
             segments, info = model.transcribe(
                 enhanced_vocals_path, # Transcribe only vocals
@@ -149,8 +180,8 @@ def transcribe_video(video_path: str) -> list[dict]:
                 vad_parameters=dict(min_silence_duration_ms=500)
             )
         except Exception as transcribe_error:
-            print(f"Transcription failed with VAD enabled: {transcribe_error}")
-            print("Retrying without VAD...")
+            logger.warning(f"Transcription failed with VAD enabled: {transcribe_error}")
+            logger.info("Retrying without VAD...")
             segments, info = model.transcribe(
                 enhanced_vocals_path, # Transcribe only vocals
                 word_timestamps=True,
@@ -158,7 +189,7 @@ def transcribe_video(video_path: str) -> list[dict]:
                 vad_filter=False
             )
         
-        print(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
+        logger.info(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
         
         transcription = []
         for segment in segments:
@@ -183,11 +214,17 @@ def transcribe_video(video_path: str) -> list[dict]:
         if model:
             del model
             gpu_manager.release_gpu_memory()
-            print("faster-whisper model unloaded and GPU memory released.")
+            logger.info("faster-whisper model unloaded and GPU memory released.")
+
+class TranscriptAnalysis(BaseModel):
+    themes: List[str] = Field(description="Main themes or topics discussed.")
+    sentiment: str = Field(description="Overall sentiment (e.g., positive, negative, neutral, mixed).")
+    speaker_changes: str = Field(description="Any noticeable speaker changes or distinct voices (if detectable from the text).")
+    key_takeaways: List[str] = Field(description="Key takeaways or summary points.")
 
 def analyze_transcript_with_llm(transcript: list[dict]) -> dict:
     """Analyzes the transcript using an LLM to identify themes, sentiment, and speaker changes."""
-    print("Analyzing transcript with LLM for themes, sentiment, and speaker changes...")
+    logger.info("Analyzing transcript with LLM for themes, sentiment, and speaker changes...")
     
     # Prepare a simplified version of the transcript for the LLM
     simplified_transcript = [{
@@ -196,33 +233,37 @@ def analyze_transcript_with_llm(transcript: list[dict]) -> dict:
         "text": seg['text']
     } for seg in transcript]
 
+    # Generate the JSON schema for TranscriptAnalysis
+    transcript_analysis_schema = TranscriptAnalysis.model_json_schema()
+
+    system_prompt_for_analysis = f"""
+You are an expert in transcript analysis. Your task is to analyze the provided transcript and extract key information.
+You MUST output a JSON object that strictly adheres to the following Pydantic schema:
+{transcript_analysis_schema}
+"""
+
     llm_prompt = f"""
-    Analyze the following video transcript and provide:
-    1. Main themes or topics discussed.
-    2. Overall sentiment (e.g., positive, negative, neutral, mixed).
-    3. Any noticeable speaker changes or distinct voices (if detectable from the text).
-    4. Key takeaways or summary points.
+Analyze the following video transcript and provide your response in the exact JSON format specified in the system prompt.
 
-    Transcript:
-    {simplified_transcript}
+Transcript:
+{simplified_transcript}
 
-    Provide the output in a structured JSON format with keys: "themes", "sentiment", "speaker_changes", "key_takeaways".
-    """
+"""
     
     try:
-        response = llm_interaction.llm_pass(config.get('llm_model'), [
-            {"role": "system", "content": "You are an expert in transcript analysis."},
-            {"role": "user", "content": llm_prompt.strip()}
-        ])
+        analysis_results_obj = llm_interaction.robust_llm_json_extraction(
+            system_prompt=system_prompt_for_analysis.strip(),
+            user_prompt=llm_prompt.strip(),
+            output_schema=TranscriptAnalysis
+        )
         
-        analysis_results = llm_interaction.extract_json_from_text(response)
-        print("Transcript analysis by LLM complete.")
-        return analysis_results
+        logger.info("Transcript analysis by LLM complete.")
+        return analysis_results_obj.model_dump()
     except Exception as e:
-        print(f"❌ \033[91mFailed to analyze transcript with LLM: {e}\033[0m")
+        logger.error(f"Failed to analyze transcript with LLM: {e}")
         return {"themes": [], "sentiment": "unknown", "speaker_changes": "not detected", "key_takeaways": []}
 
-def extract_audio_rhythm(audio_path: str, config: dict) -> dict:
+def extract_audio_rhythm(audio_path: str, config: dict) -> Dict[str, Any]:
     """Extracts tempo, beats, and speech rhythm patterns from an audio file."""
     try:
         y, sr = librosa.load(audio_path)
@@ -248,5 +289,5 @@ def extract_audio_rhythm(audio_path: str, config: dict) -> dict:
         
         return rhythm_map
     except Exception as e:
-        print(f"Error extracting audio rhythm: {e}")
-        return None
+        logger.error(f"Error extracting audio rhythm: {e}")
+        return {}

@@ -61,8 +61,78 @@ For a complete list of all available configuration options, please refer to the 
 
 ## Installation and Usage
 
-Please refer to the original `README.md` content below for detailed installation and usage instructions.
+### 1. Prerequisites
 
----
+Before you begin, ensure you have the following installed on your system:
 
-`
+*   **Python 3.12+**: You can download it from the [official Python website](https://www.python.org/downloads/).
+*   **FFmpeg**: This is a crucial dependency for video and audio processing. You can download it from the [official FFmpeg website](https://ffmpeg.org/download.html) or install it using your system's package manager (e.g., `sudo apt install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS).
+*   **Git**: You'll need Git to clone the repository. You can download it from the [official Git website](https://git-scm.com/downloads).
+*   **Ollama**: This project uses Ollama to run the large language models locally. You can download it from the [official Ollama website](https://ollama.com/).
+
+### 2. Installation
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/bukizzz/Ollama-Clip-Anything.git
+    cd Ollama-Clip-Anything
+    ```
+
+2.  **Create a virtual environment:**
+    It is highly recommended to use a virtual environment to manage the project's dependencies.
+    ```bash
+    python3.12 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Install the required Python packages:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Download the required models:**
+    This project uses several models for its various agents. You can download them using the provided script:
+    ```bash
+    python tools/download_models.py
+    ```
+    This will download the necessary models from Ollama and other sources.
+
+### 3. Configuration
+
+1.  **Configure Ollama:**
+    Make sure the Ollama application is running. You can start it by simply running `ollama serve` in your terminal.
+
+2.  **Configure the application:**
+    The main configuration file for the application is `core/config.yaml`. You can customize various settings in this file, such as the models to use, subtitle styles, and more.
+
+### 4. Usage
+
+You can run the application from the command line using `main.py`. Here are the available arguments:
+
+*   `--video_path`: Path to a local MP4 video file.
+*   `--youtube_url`: URL of a YouTube video to download.
+*   `--youtube_quality`: Desired YouTube video quality option (e.g., 0, 1, 2...).
+*   `--user_prompt`: Optional: A specific prompt for the LLM to guide clip selection.
+*   `--retry`: Automatically resume from a previous failed session.
+*   `--nocache`: Force a fresh start, deleting any existing state and temporary files.
+
+**Example usage:**
+
+*   **Processing a local video file:**
+    ```bash
+    python main.py --video_path /path/to/your/video.mp4
+    ```
+
+*   **Processing a YouTube video:**
+    ```bash
+    python main.py --youtube_url https://www.youtube.com/watch?v=your_video_id --youtube_quality 1
+    ```
+
+*   **Using a custom prompt:**
+    ```bash
+    python main.py --video_path /path/to/your/video.mp4 --user_prompt "Find the most exciting moments in the video."
+    ```
+    
+*   **Using the interactive menu**
+    Run the app without --retry to reach the interactive menu.
+    

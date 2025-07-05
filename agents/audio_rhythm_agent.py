@@ -17,7 +17,7 @@ class AudioRhythmAgent(Agent):
             set_stage_status('audio_rhythm_analysis', 'failed', {'reason': 'Audio path missing'})
             return context
 
-        self.log_info(f"Starting audio rhythm analysis for {audio_path}")
+        print(f"🥁 Starting audio rhythm analysis for {audio_path}")
         set_stage_status('audio_rhythm_analysis', 'running')
 
         try:
@@ -26,11 +26,11 @@ class AudioRhythmAgent(Agent):
             # Extract audio tempo
             tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
             tempo = float(tempo)
-            self.log_info(f"Detected tempo: {tempo:.2f} BPM")
+            print(f"✅ Detected tempo: {tempo:.2f} BPM")
 
             # Detect beat positions
             beat_times = librosa.frames_to_time(beats, sr=sr)
-            self.log_info(f"Detected {len(beat_times)} beats.")
+            print(f"✅ Detected {len(beat_times)} beats.")
 
             # Analyze speech rhythm patterns (emphasis detection)
             rms = librosa.feature.rms(y=y)[0]
@@ -49,7 +49,7 @@ class AudioRhythmAgent(Agent):
             }
 
             context['audio_rhythm_data'] = rhythm_map
-            self.log_info("Audio rhythm analysis complete.")
+            print("✅ Audio rhythm analysis complete.")
             set_stage_status('audio_rhythm_analysis', 'complete', {'tempo': tempo, 'beats_detected': len(beat_times), 'emphasized_segments': len(emphasized_times), 'emphasis_threshold': float(emphasis_threshold)})
             return context
 

@@ -10,6 +10,7 @@ class VideoEditingAgent(Agent):
         super().__init__("VideoEditingAgent")
         self.config = config
         self.state_manager = state_manager
+        # Added a comment to force file update
         
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,9 +54,9 @@ class VideoEditingAgent(Agent):
             video_info=video_info, # Pass video_info
             processing_settings=processing_settings, # Pass processing_settings
             video_analysis=video_analysis, # Pass video_analysis
-            audio_rhythm_data=context.get("audio_rhythm_data"),
-            llm_cut_decisions=context.get("llm_cut_decisions"),
-            speaker_tracking_results=context.get("speaker_tracking_results")
+            audio_rhythm_data=context.get("audio_rhythm_data", {}), # Provide empty dict as default
+            llm_cut_decisions=context.get("llm_cut_decisions", []), # Provide empty list as default
+            speaker_tracking_results=context.get("speaker_tracking_results", {}) # Provide empty dict as default
         )
         context.update({
             "created_clips": created_clips,

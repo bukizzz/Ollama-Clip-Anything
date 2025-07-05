@@ -22,7 +22,7 @@ class SpeakerTrackingAgent(Agent):
             set_stage_status('speaker_tracking', 'failed', {'reason': 'Missing dependencies'})
             return context
 
-        self.log_info("Starting speaker tracking...")
+        print("🗣️ Starting speaker tracking...")
         set_stage_status('speaker_tracking', 'running')
 
         try:
@@ -68,9 +68,9 @@ class SpeakerTrackingAgent(Agent):
             }
 
             context['speaker_tracking_results'] = speaker_tracking_results
-            self.log_info("Speaker tracking complete.")
+            print("✅ Speaker tracking complete.")
             set_stage_status('speaker_tracking_complete', 'complete', {'num_speakers': len(final_speaker_to_face)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during speaker tracking: {e}")

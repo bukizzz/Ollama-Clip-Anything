@@ -1,8 +1,24 @@
 from agents.base_agent import Agent
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from llm import llm_interaction
-import json
+from pydantic import BaseModel, Field
 from core.state_manager import set_stage_status
+
+class ContentAlignment(BaseModel):
+    start_time: float = Field(description="The start time in seconds of the aligned moment.")
+    end_time: float = Field(description="The end time in seconds of the aligned moment.")
+    spoken_content: str = Field(description="The spoken content during this segment.")
+    speaker_id: str = Field(description="The ID of the speaker.")
+    visual_scene_description: str = Field(description="A brief description of the visual content at that moment.")
+    content_topic: str = Field(description="The main topic of the content in this segment.")
+    visual_elements_present: str = Field(description="A description of visual elements present.")
+    scene_change_detected: bool = Field(description="True if a scene change was detected, false otherwise.")
+    engagement_metric: Optional[str] = Field("N/A", description="Engagement metric for the segment.")
+    audio_rhythm_analysis: Optional[str] = Field("N/A", description="Audio rhythm analysis for the segment.")
+    layout_details: Optional[str] = Field("N/A", description="Layout details for the segment.")
+
+class ContentAlignments(BaseModel):
+    alignments: List[ContentAlignment]
 
 class ContentAlignmentAgent(Agent):
     """Agent responsible for synchronizing audio and video elements."""
@@ -27,7 +43,7 @@ class ContentAlignmentAgent(Agent):
             context["content_alignment_data"] = "N/A"
             return context
 
-        self.log_info("Starting content alignment...")
+        print("🔄 Starting content alignment...")
         set_stage_status('content_alignment', 'running')
 
         # Prepare data for LLM
@@ -59,56 +75,44 @@ class ContentAlignmentAgent(Agent):
         and correlate scene changes with content topic shifts.
 
         Transcript:
-        {json.dumps(simplified_transcript, indent=2)}
+        {simplified_transcript}
 
         Storyboard:
-        {json.dumps(simplified_storyboard, indent=2)}
+        {simplified_storyboard}
 
         Audio Rhythm Data:
-        {json.dumps(simplified_audio_rhythm, indent=2)}
+        {simplified_audio_rhythm}
 
         Engagement Analysis Results:
-        {json.dumps(simplified_engagement, indent=2)}
+        {simplified_engagement}
 
         Layout Detection Results:
-        {json.dumps(simplified_layout, indent=2)}
+        {simplified_layout}
 
         Speaker Tracking Results:
-        {json.dumps(simplified_speaker_tracking, indent=2)}
+        {simplified_speaker_tracking}
 
         Qwen-VL Vision Analysis Results:
-        {json.dumps(simplified_qwen_vision, indent=2)}
+        {simplified_qwen_vision}
 
-        Provide a comprehensive content-visual alignment map as a JSON array of objects.
-        Each object should include:
-        - "timestamp": The time in seconds of the aligned moment.
-        - "visual_description": A brief description of the visual content at that moment.
-        - "spoken_text": The corresponding spoken text.
-        - "speaker_id": The identified speaker (if available).
-        - "engagement_score": The engagement score at that moment.
-        - "layout_type": The detected layout type.
-        - "qwen_features": Relevant Qwen-VL features (e.g., objects detected, scene description).
-        - "audio_rhythm_info": Relevant audio rhythm information (e.g., tempo, beat).
-        - "content_topic_shift": Indicate if a content topic shift is detected.
+        Provide a comprehensive content-visual alignment map as a JSON object with a single key "alignments" which is a list of alignment objects.
         """
 
-        self.log_info("🧠 \u001b[94mPerforming content alignment with LLM...\u001b[0m")
+        
+        print("🧠 Performing content alignment with LLM...")
         try:
-            response = llm_interaction.llm_pass(self.config.get('llm_model'), [
-                {"role": "system", "content": "You are an expert in video content analysis and synchronization."},
-                {"role": "user", "content": llm_prompt.strip()}
-            ])
+            alignment_results_obj = llm_interaction.robust_llm_json_extraction(
+                system_prompt="You are an expert in video content analysis and synchronization. Your task is to create a comprehensive content-visual alignment map.",
+                user_prompt=llm_prompt.strip(),
+                output_schema=ContentAlignments
+            )
             
-            alignment_results = llm_interaction.extract_json_from_text(response)
-            context["content_alignment_data"] = alignment_results
-            self.log_info("Content alignment by LLM complete.")
-            set_stage_status('content_alignment_complete', 'complete', {'num_alignments': len(alignment_results)})
-        except llm_interaction.InvalidJsonError as e:
-            self.log_error(f"Failed to perform content alignment with LLM: {e}. Stopping pipeline.")
-            set_stage_status('content_alignment', 'failed', {'reason': str(e)})
-            return context
+            # Convert the Pydantic model instance to a dictionary for JSON serialization
+            context["content_alignment_data"] = alignment_results_obj.model_dump()
+            print("✅ Content alignment by LLM complete.")
+            set_stage_status('content_alignment_complete', 'complete', {'num_alignments': len(alignment_results_obj.alignments)})
         except Exception as e:
-            self.log_error(f"Failed to perform content alignment with LLM: {e}")
+            self.log_error(f"Failed to perform content alignment with LLM: {e}. Stopping pipeline.")
             set_stage_status('content_alignment', 'failed', {'reason': str(e)})
             context["content_alignment_data"] = "Error during alignment."
 

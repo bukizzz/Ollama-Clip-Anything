@@ -7,18 +7,22 @@ state_file: ".temp_clips.json"
 output_dir: "videos"
 clip_prefix: "clip"
 b_roll_assets_dir: "train2014"
+log_dir: "logs"
 
 # Model settings
 whisper_model: "base"
-llm_model: "llama3.1:8b" # Default LLM for general tasks
+llm_model: "gemini-2.5-flash" # Default LLM for general tasks
 
 # LLM configuration (for specific LLM interactions)
 llm:
   min_model: "MiniCPM"
-  image_model: "qwen2.5vl:3b" # Model for image recognition tasks
+  image_model: "llava:latest" # Model for image recognition tasks
   api_keys:
     openai: "YOUR_OPENAI_KEY"
     ollama: "http://localhost:11434"
+    gemini: "AIzaSyC1PN8c7Vn-O3q-ZP1b8RjaOx6aNP--d5Y" # Added for Gemini API key
+  ollama_keep_alive: 2 # Keep Ollama models loaded indefinitely
+  # Removed redundant gemini_model entry
 
 # Subtitle settings
 subtitle_font_families: ['Impact', 'Arial Black', 'Bebas Neue']
@@ -32,15 +36,15 @@ highlight_font_color: '00FFFF'
 highlight_outline_color: '000000'
 
 # Video processing settings
-clip_duration_min: 60 # Minimum desired clip duration in seconds
-clip_duration_max: 90 # Maximum desired clip duration in seconds
-clip_validation_min: 50 # Minimum valid clip duration for internal validation
-clip_validation_max: 90 # Maximum valid clip duration for internal validation
+clip_duration_min: 30 # Minimum desired clip duration in seconds
+clip_duration_max: 120 # Maximum desired clip duration in seconds
+clip_validation_min: 30 # Minimum valid clip duration for internal validation
+clip_validation_max: 120 # Maximum valid clip duration for internal validation
 smoothing_factor: 0.1
 
 # LLM Interaction Settings (general)
-llm_max_retries: 30
-llm_min_clips_needed: 1
+llm_max_retries: 5
+llm_min_clips_needed: 1 # Changed from 10 to 1
 
 # Personalization settings
 custom_clip_themes: [] # Placeholder for custom clip themes
@@ -73,7 +77,6 @@ ffmpeg_encoder_params:
     - 'hq'
     - '-rc'
     - 'vbr_hq'
-    - '-cq'
     - '20'
   hevc_nvenc:
     - '-preset'
@@ -91,6 +94,10 @@ engagement_analysis:
   facial_expression_threshold: 0.7
   gesture_detection_threshold: 0.6
   energy_level_threshold: 0.5
+
+video_analysis:
+  frame_sample_rate: 5
+  batch_size: 5
 
 audio_rhythm:
   tempo_detection_sensitivity: 0.8
@@ -119,8 +126,8 @@ qwen_vision:
   frame_extraction_rate_fps: 1
   resolution_settings: "720p"
   temporal_encoding_parameters: "default"
-  batch_size: 5
-  ollama_qwen_vl_model_name: "qwen2.5vl:3b"
+  batch_size: 20
+  ollama_qwen_vl_model_name: "qwen2.5-coder:7b"
 
 huggingface_tokens:
   pyannote_audio: "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"
@@ -129,6 +136,11 @@ audio_analysis:
   speaker_diarization_enabled: true
 
 llm_selection:
-  max_retries: 100
+  max_retries: 5
   min_clips: 1
-  json_processing_model: "DeepSeek-Coder:6.7B-Instruct"
+  json_processing_model: llm_model # Changed LLM model
+  
+scene_detection:
+  threshold: 0.3
+  min_scene_duration: 1.0
+  sample_rate: 1

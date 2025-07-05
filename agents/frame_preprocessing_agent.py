@@ -20,7 +20,7 @@ class FramePreprocessingAgent(Agent):
             context['frame_preprocessing_error'] = 'Missing or invalid video path'
             return context
 
-        self.log_info("📸 Starting frame preprocessing...")
+        print("📸 Starting frame preprocessing...")
         set_stage_status('frame_preprocessing', 'running')
 
         try:
@@ -29,7 +29,20 @@ class FramePreprocessingAgent(Agent):
                 raise IOError(f"Could not open video file: {video_path}")
 
             fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_interval = int(fps / self.qwen_vision_config.get('frame_extraction_rate_fps', 1)) # Default 1 fps
+
+            # Get frame extraction rate from context or config
+            frame_extraction_rate = context.get("frame_extraction_rate", self.qwen_vision_config.get('frame_extraction_rate_fps', 1))
+            print(f"ℹ️ Using frame extraction rate: {frame_extraction_rate} FPS")
+
+            if frame_extraction_rate > fps:
+                self.log_warning(f"Requested FPS ({frame_extraction_rate:.2f}) is higher than video FPS ({fps:.2f}). Using video FPS.")
+                frame_extraction_rate = fps
+            
+            if frame_extraction_rate <= 0:
+                self.log_error("Frame extraction rate must be a positive number.")
+                raise ValueError("Frame extraction rate must be a positive number.")
+
+            frame_interval = int(fps / frame_extraction_rate)
             frame_count = 0
             extracted_frames_info = []
 
@@ -62,7 +75,7 @@ class FramePreprocessingAgent(Agent):
                 frame_count += 1
 
             cap.release()
-            self.log_info(f"Extracted {len(extracted_frames_info)} frames.")
+            print(f"✅ Extracted {len(extracted_frames_info)} frames.")
             context['extracted_frames_info'] = extracted_frames_info
             set_stage_status('frame_feature_extraction_complete', 'complete', {'num_frames': len(extracted_frames_info)})
             return context

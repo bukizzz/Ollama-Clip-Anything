@@ -2,6 +2,7 @@ from agents.base_agent import Agent
 from core.state_manager import set_stage_status
 import librosa
 from llm import llm_interaction
+from pydantic import BaseModel, Field
 
 class MusicSyncAgent(Agent):
     def __init__(self, agent_config, state_manager):
@@ -25,15 +26,23 @@ class MusicSyncAgent(Agent):
             set_stage_status('music_sync', 'failed', {'reason': 'Missing dependencies'})
             return context
 
-        self.log_info("Starting music synchronization...")
+        print("🎵 Starting music synchronization...")
         set_stage_status('music_sync', 'running')
 
         try:
             # 1. Select music based on mood
+            class MusicGenre(BaseModel):
+                genre: str = Field(description="The chosen music genre from the provided list.")
+
             sentiment = audio_analysis.get('sentiment', {}).get('label', 'NEUTRAL').lower()
-            prompt = f"Choose a music genre for a video with a '{sentiment}' mood from this list: {list(self.music_library.keys())}. Respond with JSON: {{\"genre\": \"...\"}}"
-            response = llm_interaction.llm_pass(llm_interaction.LLM_MODEL, [{"role": "user", "content": prompt}])
-            genre = llm_interaction.extract_json_from_text(response).get('genre', 'ambient_chill')
+            prompt = f"Choose a music genre for a video with a '{sentiment}' mood from this list: {list(self.music_library.keys())}."
+            
+            genre_selection = llm_interaction.robust_llm_json_extraction(
+                system_prompt="You are an expert music selector. Your task is to choose the most appropriate music genre based on the video's mood.",
+                user_prompt=prompt,
+                output_schema=MusicGenre
+            )
+            genre = genre_selection.genre
             
             selected_track = self.music_library.get(genre)
             if not selected_track:
@@ -61,9 +70,9 @@ class MusicSyncAgent(Agent):
                 'beat_times': music_beat_times.tolist(),
                 'volume_automation': volume_automation
             }
-            self.log_info(f"Music synchronization complete. Selected genre: {genre}")
+            print(f"✅ Music synchronization complete. Selected genre: {genre}")
             set_stage_status('music_integration_complete', 'complete', {'genre': genre})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during music synchronization: {e}")

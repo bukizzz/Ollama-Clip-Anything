@@ -2,6 +2,7 @@ from agents.base_agent import Agent
 from core.state_manager import set_stage_status
 from llm import llm_interaction
 import numpy as np
+from pydantic import BaseModel, Field
 
 class HookIdentificationAgent(Agent):
     def __init__(self, config, state_manager):
@@ -18,7 +19,7 @@ class HookIdentificationAgent(Agent):
             set_stage_status('hook_identification', 'failed', {'reason': 'Missing dependencies'})
             return context
 
-        self.log_info("Starting hook identification...")
+        print("🪝 Starting hook identification...")
         set_stage_status('hook_identification', 'running')
 
         try:
@@ -40,31 +41,38 @@ class HookIdentificationAgent(Agent):
                 
                 if text:
                     # Use LLM to evaluate quotability and narrative potential
+                    class HookAnalysis(BaseModel):
+                        is_hook: bool = Field(description="True if the text is a strong narrative hook, False otherwise.")
+                        quotability_score: float = Field(description="A score from 0 to 1 indicating how quotable the moment is.", ge=0, le=1)
+                        reason: str = Field(description="Explanation for the assessment.")
+
                     prompt = f"""
                     Analyze this text from a video transcript at {timestamp:.2f}s: "{text}"
                     Is this a strong narrative hook or a highly quotable moment?
-                    Provide a JSON response with: {{"is_hook": boolean, "quotability_score": float (0-1), "reason": "..."}}
                     """
-                    self.log_info(f"🧠 \u001b[94mAnalyzing potential hook at {timestamp:.2f}s with LLM...\u001b[0m")
+                    print(f"🧠 Analyzing potential hook at {timestamp:.2f}s with LLM...")
                     try:
-                        response = llm_interaction.llm_pass(llm_interaction.LLM_MODEL, [{"role": "user", "content": prompt}])
-                        analysis = llm_interaction.extract_json_from_text(response)
+                        analysis_obj = llm_interaction.robust_llm_json_extraction(
+                            system_prompt="You are an expert in identifying narrative hooks and quotable moments from text.",
+                            user_prompt=prompt,
+                            output_schema=HookAnalysis
+                        )
                         
-                        if analysis.get('is_hook') or analysis.get('quotability_score', 0) > 0.7:
+                        if analysis_obj.is_hook or analysis_obj.quotability_score > 0.7:
                             hooks.append({
                                 'timestamp': timestamp,
                                 'text': text,
                                 'engagement_score': hook['engagement_score'],
-                                'quotability_score': analysis.get('quotability_score', 0),
-                                'reason': analysis.get('reason', '')
+                                'quotability_score': analysis_obj.quotability_score,
+                                'reason': analysis_obj.reason
                             })
                     except Exception as e:
                         self.log_error(f"LLM analysis for hook at {timestamp:.2f}s failed: {e}")
 
             context['identified_hooks'] = sorted(hooks, key=lambda x: x['engagement_score'], reverse=True)
-            self.log_info(f"Hook identification complete. Identified {len(hooks)} potential hooks.")
+            print(f"✅ Hook identification complete. Identified {len(hooks)} potential hooks.")
             set_stage_status('hook_identification_complete', 'complete', {'num_hooks': len(hooks)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during hook identification: {e}")

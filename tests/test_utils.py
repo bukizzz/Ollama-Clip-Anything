@@ -1,8 +1,5 @@
 import pytest
 from unittest.mock import patch, Mock
-import os
-import signal
-import psutil
 
 from core.utils import terminate_existing_processes
 

@@ -8,7 +8,7 @@ class ContentEnhancementAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
-        self.log_info("Coordinating content enhancement pipeline...")
+        print("🚀 Coordinating content enhancement pipeline...")
         set_stage_status('content_enhancement', 'running')
 
         try:
@@ -31,9 +31,9 @@ class ContentEnhancementAgent(Agent):
             }
             context['processing_summary_report'] = report
 
-            self.log_info("Content enhancement pipeline coordinated successfully.")
+            print("✅ Content enhancement pipeline coordinated successfully.")
             set_stage_status('content_enhancement_complete', 'complete', report)
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error in ContentEnhancementAgent: {e}")

@@ -1,6 +1,12 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 from llm import llm_interaction
-from core.config import config
+from pydantic import BaseModel, Field
+
+class UserPromptParameters(BaseModel):
+    theme: str = Field(description="The main theme extracted from the user's prompt.")
+    characters: List[str] = Field(description="A list of characters mentioned in the user's prompt.")
+    style: str = Field(description="The desired editing style (e.g., 'standard', 'fast-paced', 'cinematic').")
+    keywords: List[str] = Field(description="A list of relevant keywords from the user's prompt.")
 
 def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
     """Parses a user's natural language prompt into structured parameters using an LLM."""
@@ -20,22 +26,17 @@ def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
 
     User Prompt: "{user_prompt}"
 
-    Return the output as a JSON object with the following keys:
-    - "theme": (string, e.g., "sports", "vlog", "news", or "default" if not specified)
-    - "characters": (array of strings, e.g., ["John", "Jane"] or empty array if none)
-    - "style": (string, e.g., "dramatic", "fast-paced", "calm", "standard" if not specified)
-    - "keywords": (array of strings, important words from the prompt)
+    Provide your response as a JSON object adhering to the UserPromptParameters schema.
     """
 
     try:
-        response = llm_interaction.llm_pass(config.get('llm_model'), [
-            {"role": "system", "content": "You are an AI assistant that extracts structured information from user prompts."},
-            {"role": "user", "content": llm_prompt.strip()}
-        ])
-        
-        parsed_data = llm_interaction.extract_json_from_text(response)
+        parsed_data_model = llm_interaction.robust_llm_json_extraction(
+            system_prompt="You are an AI assistant that extracts structured information from user prompts.",
+            user_prompt=llm_prompt.strip(),
+            output_schema=UserPromptParameters
+        )
         print("✅ User prompt parsed by LLM.")
-        return parsed_data
+        return parsed_data_model.model_dump()
     except Exception as e:
         print(f"❌ \033[91mFailed to parse user prompt with LLM: {e}\033[0m")
         return {

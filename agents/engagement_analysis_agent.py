@@ -1,5 +1,6 @@
 from agents.base_agent import Agent
 from core.state_manager import set_stage_status
+from typing import Dict, Any
 
 class EngagementAnalysisAgent(Agent):
     def __init__(self, agent_config, state_manager):
@@ -8,14 +9,14 @@ class EngagementAnalysisAgent(Agent):
         self.state_manager = state_manager
         self.engagement_config = agent_config.get('engagement_analysis', {})
 
-    def execute(self, context):
+    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]: # Added type hint for clarity
         video_analysis = context.get('video_analysis_results')
         if not video_analysis:
             self.log_error("Video analysis results not found. Cannot perform engagement analysis.")
             set_stage_status('engagement_analysis', 'failed', {'reason': 'Missing video analysis results'})
             return context
 
-        self.log_info("Starting engagement analysis...")
+        print("📈 Starting engagement analysis...")
         set_stage_status('engagement_analysis', 'running')
 
         try:
@@ -52,9 +53,9 @@ class EngagementAnalysisAgent(Agent):
             ranked_segments = sorted(engagement_scores, key=lambda x: x['engagement_score'], reverse=True)
             
             context['engagement_analysis_results'] = ranked_segments
-            self.log_info("Engagement analysis complete.")
+            print("✅ Engagement analysis complete.")
             set_stage_status('engagement_analysis_complete', 'complete', {'num_segments_scored': len(ranked_segments)})
-            return True
+            return context # Changed from return True
 
         except Exception as e:
             self.log_error(f"Error during engagement analysis: {e}")

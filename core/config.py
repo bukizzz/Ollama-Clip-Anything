@@ -37,8 +37,7 @@ class Config:
 # Instantiate the Config class to load settings on import
 config = Config()
 
-# Expose commonly used config values directly for convenience (optional, can be removed if all access is via config.get())
-# Example:
-# TEMP_DIR = config.get('temp_dir')
-# LLM_MODEL = config.get('llm_model')
+# Expose commonly used config values directly for convenience
 CLIP_DURATION_RANGE = (config.get('clip_duration_min'), config.get('clip_duration_max'))
+
+

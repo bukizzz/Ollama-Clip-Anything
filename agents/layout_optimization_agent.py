@@ -17,7 +17,7 @@ class LayoutOptimizationAgent(Agent):
             set_stage_status('layout_optimization', 'failed', {'reason': 'Missing dependencies'})
             return context
 
-        self.log_info("Optimizing layout for selected clips...")
+        print("📐 Optimizing layout for selected clips...")
         set_stage_status('layout_optimization', 'running')
 
         try:
@@ -57,9 +57,9 @@ class LayoutOptimizationAgent(Agent):
                 })
 
             context['layout_optimization_recommendations'] = layout_recommendations
-            self.log_info("Layout optimization complete.")
+            print("✅ Layout optimization complete.")
             set_stage_status('layout_optimization_complete', 'complete', {'num_recommendations': len(layout_recommendations)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during layout optimization: {e}")

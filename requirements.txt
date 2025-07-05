@@ -48,3 +48,5 @@ deepface # Added for VideoAnalysisAgent
 coqui-tts # Replaced TTS for Python 3.12+ compatibility
 tf-keras # Added for transformers Keras 3 compatibility
 psutil # Added for memory monitoring
+json5
+jsonschema

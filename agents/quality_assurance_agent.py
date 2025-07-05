@@ -8,7 +8,7 @@ class QualityAssuranceAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
-        self.log_info("Performing final quality assurance checks...")
+        print("🛡️ Performing final quality assurance checks...")
         set_stage_status('quality_assurance', 'running')
 
         try:
@@ -36,9 +36,9 @@ class QualityAssuranceAgent(Agent):
                 report['overall_status'] = "fail"
 
             context['qa_report'] = report
-            self.log_info(f"Quality assurance complete. Status: {report['overall_status']}")
+            print(f"✅ Quality assurance complete. Status: {report['overall_status']}")
             set_stage_status('quality_assurance_complete', 'complete', report)
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error in QualityAssuranceAgent: {e}")

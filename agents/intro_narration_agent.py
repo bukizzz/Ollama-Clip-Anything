@@ -20,7 +20,7 @@ class IntroNarrationAgent(Agent):
             set_stage_status('intro_narration_generated', 'failed', {'reason': 'Missing selected clips info'})
             return context
 
-        self.log_info("Starting intro narration generation...")
+        print("🎤 Starting intro narration generation...")
         set_stage_status('intro_narration_generated', 'running')
 
         try:
@@ -41,7 +41,7 @@ class IntroNarrationAgent(Agent):
             Generate only the narration text.
             """
             
-            self.log_info("🧠 \u001b[94mGenerating intro narration text with LLM...\u001b[0m")
+            print("🧠 Generating intro narration text with LLM...")
             narration_text = llm_interaction.llm_pass(
                 self.config.get('llm_model'),
                 [
@@ -49,7 +49,7 @@ class IntroNarrationAgent(Agent):
                     {"role": "user", "content": llm_prompt.strip()}
                 ]
             )
-            self.log_info(f"Generated narration text: {narration_text}")
+            print(f"🤖 Generated narration text: {narration_text}")
             llm_interaction.cleanup() # Clear VRAM after LLM text generation
 
             if not narration_text:
@@ -61,7 +61,7 @@ class IntroNarrationAgent(Agent):
             narration_audio_path = get_temp_path("intro_narration.wav")
             
             if self.intro_narration_config.get('voice_cloning_enabled', False):
-                self.log_info("Generating intro narration audio using voice cloning...")
+                print("🗣️ Generating intro narration audio using voice cloning...")
                 
                 # Extract dominant speaker's audio for voice cloning
                 speaker_diarization = audio_analysis_results.get('speaker_diarization', [])
@@ -72,7 +72,7 @@ class IntroNarrationAgent(Agent):
                     # This part is conceptual - would need to extract the audio segment for the dominant speaker
                     # For now, we'll pass a placeholder path to the voice cloning function
                     speaker_wav_path = context.get('audio_path') # Use the full audio as a proxy
-                    self.log_info(f"Using dominant speaker '{dominant_speaker}' for voice cloning.")
+                    print(f"🗣️ Using dominant speaker '{dominant_speaker}' for voice cloning.")
 
                 success = voice_cloning.generate_voice_from_text(narration_text, narration_audio_path, speaker_wav_path=speaker_wav_path)
                 if not success:
@@ -80,14 +80,14 @@ class IntroNarrationAgent(Agent):
                     set_stage_status('intro_narration_generated', 'failed', {'reason': 'Voice cloning failed'})
                     return context
             else:
-                self.log_info("Voice cloning disabled. Skipping audio generation for intro narration.")
+                print("🔇 Voice cloning disabled. Skipping audio generation for intro narration.")
                 narration_audio_path = None
 
             context['intro_narration'] = {
                 'text': narration_text,
                 'audio_path': narration_audio_path
             }
-            self.log_info("Intro narration generation complete.")
+            print("✅ Intro narration generation complete.")
             set_stage_status('intro_narration_generated', 'complete', {'text': narration_text, 'audio_path': narration_audio_path})
             return context
 

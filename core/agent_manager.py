@@ -34,11 +34,11 @@ class AgentManager:
             agent_name_snake_case = ''.join(['_' + i.lower() if i.isupper() else i for i in agent.name]).lstrip('_')
             
             # Check if the agent should be executed based on config and current stage
-            print(f"DEBUG: Current stage before {agent.name}: {context.get("current_stage")}")
+            
             if config.get(f'agents.{agent_name_snake_case}.enabled', True) and \
                context.get("current_stage") != f"{agent_name_snake_case}_complete":
                 
-                print(f"Executing {agent.name}...")
+                
                 context = agent.execute(context)
                 
                 # Update the current stage in the context and save the state

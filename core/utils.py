@@ -17,26 +17,26 @@ def convert_av1_to_hevc(video_path: str) -> str:
         result = subprocess.run(['nvidia-smi'], capture_output=True)
         if result.returncode == 0:
             encoder = "hevc_nvenc"
-            print("\n⚙️ Using NVENC (NVIDIA GPU) for AV1 conversion.")
+            print("⚙️ Using NVENC (NVIDIA GPU) for AV1 conversion.")
         else:
             encoder = "libx265"
-            print("\n⚙️ Using CPU for AV1 conversion.")
+            print("⚙️ Using CPU for AV1 conversion.")
     except FileNotFoundError:
         encoder = "libx265"
-        print("\n⚠️ NVENC not found. Using CPU for AV1 conversion.")
+        print("⚠️ NVENC not found. Using CPU for AV1 conversion.")
 
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
         "-c:v", encoder, "-preset", "medium", "-crf", "23",
         "-c:a", "copy", output_path
     ]
-    print(f"\n⚙️ Running FFmpeg to convert AV1 to HEVC: {' '.join(cmd)}")
+    print(f"⚙️ Running FFmpeg to convert AV1 to HEVC: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print(f"\n✅ Successfully converted {video_path} to {output_path}")
+        print(f"✅ Successfully converted {video_path} to {output_path}")
         return output_path
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ FFmpeg conversion failed. Stderr: {e.stderr}")
+        print(f"❌ FFmpeg conversion failed. Stderr: {e.stderr}")
         raise RuntimeError(f"\nFailed to convert AV1 video: {e}")
 
 def terminate_existing_processes():
@@ -68,7 +68,7 @@ def get_video_info(video_path: str) -> dict:
         data = json.loads(result.stdout)
         video_stream = next(s for s in data['streams'] if s['codec_type'] == 'video')
         if video_stream['codec_name'] == 'av1':
-            print("\n⚠️  AV1 video codec detected. Attempting to convert to H.265 (HEVC)...")
+            print("⚠️  AV1 video codec detected. Attempting to convert to H.265 (HEVC)...")
             converted_video_path = convert_av1_to_hevc(video_path)
             # Update video_path to the converted video for further processing
             video_path = converted_video_path
@@ -96,60 +96,60 @@ def system_checks():
     # Check disk space
     try:
         free_space = shutil.disk_usage('.').free / (1024**3)
-        print(f"\n💾 Available disk space: {free_space:.1f}GB")
+        print(f"💾 Available disk space: {free_space:.1f}GB")
         if free_space < 20:
-            print("\n⚠️  Warning: Low disk space (< 20GB).")
+            print("⚠️  Warning: Low disk space (< 20GB).")
     except Exception as e:
-        print(f"\n❌ Could not check disk space: {e}")
+        print(f"❌ Could not check disk space: {e}")
 
     # Check for FFmpeg
     try:
         subprocess.run([config.get('ffmpeg_path'), "-version"], capture_output=True, check=True)
-        print("\n✅ FFmpeg is installed and accessible.")
+        print("✅ FFmpeg is installed and accessible.")
     except (FileNotFoundError, subprocess.CalledProcessError):
-        print("\n❌ CRITICAL: FFmpeg not found. Please install it and ensure it's in your system's PATH.")
+        print("❌ CRITICAL: FFmpeg not found. Please install it and ensure it's in your system's PATH.")
         
     # Check for Ollama service
     try:
         client = ollama.Client(host=config.get('llm.api_keys.ollama'))
         client.list() # This will raise an exception if Ollama is not running
-        print("\n✅ Ollama service is running.")
+        print("✅ Ollama service is running.")
     except Exception as e:
-        print(f"\n❌ CRITICAL: Ollama service not found or not reachable at http://localhost:11434. Please ensure Ollama is installed and running. Error: \n{e}")
+        print(f"❌ CRITICAL: Ollama service not found or not reachable at http://localhost:11434. Please ensure Ollama is installed and running. Error: \n{e}")
         return # Exit if Ollama service is not running
 
     # Check for LLM model availability
     try:
         client = ollama.Client(host=config.get('llm.api_keys.ollama'))
         models = client.list()['models']
-        if any(model['name'] == config.get('llm_model') for model in models):
-            print(f"\n✅ '{config.get('llm_model')}' is available.")
+        if any(model.model == config.get('llm_model') for model in models):
+            print(f"✅ '{config.get('llm_model')}' is available.")
         else:
-            print(f"\n❌ CRITICAL: '{config.get('llm_model')}' not found. Please download it using 'ollama pull {config.get('llm_model')}'.")
+            print(f"❌ CRITICAL: '{config.get('llm_model')}' not found. Please download it using 'ollama pull {config.get('llm_model')}'.")
     except Exception as e:
-        print(f"\n❌ CRITICAL: Could not check LLM model availability. Error: {e}")
+        print(f"❌ CRITICAL: Could not check LLM model availability. Error: {e}")
 
     # Check for PyTorch
     try:
         import torch
-        print(f"\n✅ PyTorch is installed (version: {torch.__version__}).")
+        print(f"✅ PyTorch is installed (version: {torch.__version__}).")
         if torch.cuda.is_available():
-            print(f"\n⚡ CUDA is available (version: {torch.version.cuda}).")
+            print(f"✅ CUDA is available (version: {torch.version.cuda}).")
         else:
-            print("\n🐢 CUDA is NOT available. Processing will use CPU.")
+            print("🐢 CUDA is NOT available. Processing will use CPU.")
     except ImportError:
-        print("❌\nCRITICAL: PyTorch is not installed. Please install it (e.g., pip install torch torchvision torchaudio).")
+        print("❌CRITICAL: PyTorch is not installed. Please install it (e.g., pip install torch torchvision torchaudio).")
     except Exception as e:
-        print(f"❌\nError checking PyTorch: {e}")
+        print(f"❌Error checking PyTorch: {e}")
 
     # Check for OpenCV
     try:
         import cv2
-        print(f"\n✅ OpenCV is installed (version: {cv2.__version__}).")
+        print(f"✅ OpenCV is installed (version: {cv2.__version__}).")
     except ImportError:
-        print("\n❌ CRITICAL: OpenCV is not installed.")
+        print("❌ CRITICAL: OpenCV is not installed.")
     except Exception as e:
-        print(f"\n❌ Error checking OpenCV:\n{e}")
+        print(f"❌ Error checking OpenCV:\n{e}")
 
     # Check for MediaPipe
     try:

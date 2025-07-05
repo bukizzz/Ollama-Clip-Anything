@@ -1,7 +1,18 @@
 from agents.base_agent import Agent
 from core.state_manager import set_stage_status
 from llm import llm_interaction
-import json
+from pydantic import BaseModel, Field
+from typing import List, Any, Dict
+
+class CutDecision(BaseModel):
+    start_time: float = Field(description="The start time of the clip segment in seconds.")
+    end_time: float = Field(description="The end time of the clip segment in seconds.")
+    reason: str = Field(description="A brief explanation for the cut decision (e.g., \"high engagement moment\", \"speaker transition\", \"scene change\").")
+    key_elements: List[str] = Field(description="A list of key visual or audio elements present in this segment.")
+    viral_potential_score: int = Field(description="An estimated score for viral potential (0-10).", ge=0, le=10)
+
+class CutDecisions(BaseModel):
+    cut_decisions: List[CutDecision]
 
 class LLMVideoDirectorAgent(Agent):
     def __init__(self, config, state_manager):
@@ -9,7 +20,7 @@ class LLMVideoDirectorAgent(Agent):
         self.config = config
         self.state_manager = state_manager
 
-    def execute(self, context):
+    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         # Gather all relevant analysis results from the context
         transcription = context.get('transcription')
         storyboard_data = context.get('storyboard_data')
@@ -26,7 +37,7 @@ class LLMVideoDirectorAgent(Agent):
             set_stage_status('llm_video_director', 'failed', {'reason': 'Missing essential data'})
             return context
 
-        self.log_info("Starting LLM Video Director orchestration...")
+        print("🎬 Starting LLM Video Director orchestration...")
         set_stage_status('llm_video_director', 'running')
 
         try:
@@ -38,31 +49,31 @@ class LLMVideoDirectorAgent(Agent):
             Here is the available analysis data:
 
             Transcription:
-            {json.dumps(transcription, indent=2)}
+            {transcription}
 
             Storyboard Data:
-            {json.dumps(storyboard_data, indent=2)}
+            {storyboard_data}
 
             Audio Rhythm Data:
-            {json.dumps(audio_rhythm_data, indent=2)}
+            {audio_rhythm_data}
 
             Engagement Analysis Results:
-            {json.dumps(engagement_analysis_results, indent=2)}
+            {engagement_analysis_results}
 
             Layout Detection Results:
-            {json.dumps(layout_detection_results, indent=2)}
+            {layout_detection_results}
 
             Speaker Tracking Results:
-            {json.dumps(speaker_tracking_results, indent=2)}
+            {speaker_tracking_results}
 
             Qwen-VL Vision Analysis Results:
-            {json.dumps(qwen_vision_analysis_results, indent=2)}
+            {qwen_vision_analysis_results}
 
             Content Alignment Data:
-            {json.dumps(content_alignment_data, indent=2)}
+            {content_alignment_data}
 
             Identified Hooks:
-            {json.dumps(identified_hooks, indent=2)}
+            {identified_hooks}
 
             Based on this data, provide a detailed plan for video cuts. Focus on:
             1. Identifying optimal start and end points for clips, considering narrative coherence, engagement, and visual flow.
@@ -70,32 +81,23 @@ class LLMVideoDirectorAgent(Agent):
             3. Ensuring smooth transitions and emphasizing key moments.
             4. Suggesting cut decisions that maximize viral potential and viewer retention.
 
-            Output your recommendations as a JSON array of objects. Each object should represent a suggested clip segment
-            and include:
-            - "start_time": The start time of the clip segment in seconds.
-            - "end_time": The end time of the clip segment in seconds.
-            - "reason": A brief explanation for the cut decision (e.g., "high engagement moment", "speaker transition", "scene change").
-            - "key_elements": A list of key visual or audio elements present in this segment.
-            - "viral_potential_score": An estimated score for viral potential (0-10).
+            Provide your response as a JSON object with a single key "cut_decisions" which is a list of cut decision objects.
             """
 
-            self.log_info("🧠 \u001b[94mSending comprehensive data to LLM for video direction...\u001b[0m")
-            response = llm_interaction.llm_pass(
-                llm_interaction.LLM_MODEL,
-                [
-                    {"role": "system", "content": "You are an expert video director, making intelligent cut decisions."},
-                    {"role": "user", "content": llm_prompt.strip()}
-                ]
+            print("🧠 Sending comprehensive data to LLM for video direction...")
+            
+            llm_cut_decisions_obj = llm_interaction.robust_llm_json_extraction(
+                system_prompt="You are an expert video director, making intelligent cut decisions.",
+                user_prompt=llm_prompt.strip(),
+                output_schema=CutDecisions
             )
             
-            llm_cut_decisions = llm_interaction.extract_json_from_text(response)
-            if not isinstance(llm_cut_decisions, list):
-                raise ValueError("LLM did not return a list of cut decisions.")
+            llm_cut_decisions = llm_cut_decisions_obj.cut_decisions
 
             context['llm_cut_decisions'] = llm_cut_decisions
-            self.log_info(f"LLM Video Director orchestration complete. Generated {len(llm_cut_decisions)} cut decisions.")
+            print(f"✅ LLM Video Director orchestration complete. Generated {len(llm_cut_decisions)} cut decisions.")
             set_stage_status('llm_video_director_complete', 'complete', {'num_cut_decisions': len(llm_cut_decisions)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during LLM Video Director orchestration: {e}")

@@ -1,4 +1,5 @@
 import cv2
+import numpy as np # Added numpy import
 from agents.base_agent import Agent
 from core.state_manager import set_stage_status
 
@@ -8,16 +9,22 @@ class LayoutDetectionAgent(Agent):
         self.config = agent_config
         self.state_manager = state_manager
         self.layout_config = agent_config.get('layout_detection', {})
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        
+        # Replaced CascadeClassifier with YuNet DNN model
+        self.face_detector = cv2.dnn.readNetFromONNX("weights/face_detection_yunet_2023mar.onnx")
+        self.face_detector.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+        self.face_detector.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+        self.input_size = (320, 320) # YuNet input size, can be adjusted
 
     def execute(self, context):
         video_path = context.get('processed_video_path')
-        if not video_path or self.face_cascade.empty():
-            self.log_error("Processed video path not found in context or face cascade not loaded.")
-            set_stage_status('layout_detection', 'failed', {'reason': 'Missing video path or cascade'})
+        # Modified check to use face_detector instead of face_cascade
+        if not video_path or self.face_detector.empty():
+            self.log_error("Processed video path not found in context or face detector not loaded.")
+            set_stage_status('layout_detection', 'failed', {'reason': 'Missing video path or detector'})
             return context
 
-        self.log_info("Starting layout detection...")
+        print("🔍 Starting layout detection...")
         set_stage_status('layout_detection', 'running')
 
         try:
@@ -27,14 +34,35 @@ class LayoutDetectionAgent(Agent):
 
             layout_analysis_results = []
             prev_num_faces = 0
-            
+            confidence_threshold = 0.9 # Confidence threshold for face detection
+
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+                h, w, _ = frame.shape
+                # Preprocess frame for YuNet
+                blob = cv2.dnn.blobFromImage(frame, 1.0, self.input_size, (0, 0, 0), swapRB=True, crop=False)
+                self.face_detector.setInput(blob)
+
+                # Inference
+                detections = self.face_detector.forward()
+
+                # Post-process detections
+                faces = []
+                # detections is a 1x1xNx15 array, where N is the number of detections
+                # Each detection is [batch_id, class_id, score, x1, y1, x2, y2, ...]
+                for i in range(detections.shape[2]):
+                    confidence = detections[0, 0, i, 2]
+                    if confidence > confidence_threshold:
+                        # Extract bounding box coordinates (x1, y1, x2, y2)
+                        x1 = int(detections[0, 0, i, 3] * w)
+                        y1 = int(detections[0, 0, i, 4] * h)
+                        x2 = int(detections[0, 0, i, 5] * w)
+                        y2 = int(detections[0, 0, i, 6] * h)
+                        faces.append([x1, y1, x2 - x1, y2 - y1]) # Convert to x, y, w, h format if needed
+
                 num_faces = len(faces)
 
                 timestamp_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
@@ -71,9 +99,9 @@ class LayoutDetectionAgent(Agent):
 
             cap.release()
             context['layout_detection_results'] = layout_analysis_results
-            self.log_info("Layout detection complete.")
+            print("✅ Layout detection complete.")
             set_stage_status('layout_detection_complete', 'complete', {'num_frames_analyzed': len(layout_analysis_results)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error during layout detection: {e}")

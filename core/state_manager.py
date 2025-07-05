@@ -22,8 +22,13 @@ def load_state_file():
     """Loads the state file if it exists."""
     state_file = get_state_file_path()
     if os.path.exists(state_file):
-        with open(state_file, 'r') as f:
-            return json.load(f)
+        try:
+            with open(state_file, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"⚠️ Warning: State file '{state_file}' is corrupted. Starting a fresh session.")
+            delete_state_file() # Optionally delete the corrupted file
+            return None
     return None
 
 def update_state_file(updates):

@@ -22,7 +22,7 @@ class SubtitleAnimationAgent(Agent):
             set_stage_status('subtitle_animation', 'failed', {'reason': 'Missing dependencies'})
             return context
 
-        self.log_info("Generating animated subtitles...")
+        print("🎨 Generating animated subtitles...")
         set_stage_status('subtitle_animation', 'running')
 
         try:
@@ -50,9 +50,9 @@ class SubtitleAnimationAgent(Agent):
                 animated_subtitle_paths.append(ass_path)
 
             context['animated_subtitle_paths'] = animated_subtitle_paths
-            self.log_info(f"Generated {len(animated_subtitle_paths)} animated subtitle files.")
+            print(f"✅ Generated {len(animated_subtitle_paths)} animated subtitle files.")
             set_stage_status('subtitle_animation_complete', 'complete', {'num_files': len(animated_subtitle_paths)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error in SubtitleAnimationAgent: {e}")

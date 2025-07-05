@@ -17,13 +17,13 @@ class Agent(ABC):
             self.logger.addHandler(handler)
 
     def log_info(self, message):
-        self.logger.info(message)
+        print(f"ℹ️ {message}")
 
     def log_error(self, message):
-        self.logger.error(message)
+        print(f"❌ {message}")
 
     def log_warning(self, message):
-        self.logger.warning(message)
+        print(f"⚠️ {message}")
 
     @abstractmethod
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:

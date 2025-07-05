@@ -9,7 +9,8 @@ import threading
 from collections import deque
 import time
 import logging
-import subprocess
+import os
+import requests
 from core.config import config
 
 logger = logging.getLogger(__name__)
@@ -94,7 +95,7 @@ class GPUManager:
         least_priority_model_name = min(self.loaded_models, key=lambda name: self.model_priorities.get(name, 0))
         if least_priority_model_name:
             # Check if it's an Ollama model and unload using bash command
-            if least_priority_model_name in [config.get('llm_model'), config.get('llm.image_model')]:
+            if least_priority_model_name in [config.get('llm.model'), config.get('llm.image_model')]:
                 self.unload_ollama_model(least_priority_model_name)
             else:
                 self.unload_model(least_priority_model_name)
@@ -102,12 +103,21 @@ class GPUManager:
     def unload_ollama_model(self, model_name: str):
         try:
             self.logger.info(f"Attempting to unload Ollama model: {model_name}")
-            subprocess.run(["ollama", "stop", model_name], check=True, capture_output=True, text=True)
+            ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+            url = f"{ollama_host}/api/chat"
+            payload = {
+                "model": model_name,
+                "messages": [],
+                "keep_alive": 0
+            }
+            response = requests.post(url, json=payload)
+            response.raise_for_status()
             self.logger.info(f"Successfully unloaded Ollama model: {model_name}")
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Could not unload Ollama model {model_name}: {e.stderr}")
-        except FileNotFoundError:
-            self.logger.error("'ollama' command not found. Please ensure Ollama is installed and in your PATH.")
+            self.release_gpu_memory()
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Could not unload Ollama model {model_name} via API: {e}")
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred while unloading Ollama model {model_name}: {e}")
 
 # Global instance
 gpu_manager = GPUManager()

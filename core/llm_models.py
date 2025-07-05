@@ -83,6 +83,10 @@ def query_image_embedding(image: Image.Image) -> List[float]:
 
 def image_to_base64(image: Image.Image) -> str:
     """Converts a PIL Image to a base64 string."""
+    print(f"DEBUG: image_to_base64 - Image format: {image.format}, size: {image.size}")
+    # Convert image to RGB mode to ensure compatibility with PNG saving
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")

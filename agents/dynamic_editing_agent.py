@@ -18,7 +18,7 @@ class DynamicEditingAgent(Agent):
             set_stage_status('dynamic_editing', 'skipped', {'reason': 'No clips'})
             return context
 
-        self.log_info("Generating dynamic editing decisions...")
+        print("✨ Generating dynamic editing decisions...")
         set_stage_status('dynamic_editing', 'running')
 
         try:
@@ -46,9 +46,9 @@ class DynamicEditingAgent(Agent):
             # Could involve adjusting clip speed or adding/removing small segments based on engagement flow
             
             context['dynamic_editing_decisions'] = editing_decisions
-            self.log_info(f"Generated {len(editing_decisions)} dynamic editing decisions.")
+            print(f"✅ Generated {len(editing_decisions)} dynamic editing decisions.")
             set_stage_status('dynamic_editing_complete', 'complete', {'num_decisions': len(editing_decisions)})
-            return True
+            return context
 
         except Exception as e:
             self.log_error(f"Error in DynamicEditingAgent: {e}")
