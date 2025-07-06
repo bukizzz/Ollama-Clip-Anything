@@ -1,3 +1,35 @@
+# Ollama-Clip-Anything Changelog
+
+## Version 4.2.3
+
+### Bug Fixes
+- **Video Processing:** Fixed an issue where the video processing would fail if the `temp_processing` directory did not exist. The application now ensures the directory is created if it's missing.
+- **Dependencies:** Resolved a conflict in the `requirements.txt` file that was causing installation issues for some users.
+
+### New Features
+- **Enhanced Error Reporting:** Implemented more descriptive error messages throughout the application to help users better understand and troubleshoot issues.
+- **Improved Performance:** Optimized the video analysis process, resulting in a significant reduction in processing time for longer videos.
+
+## Version 4.2.2
+
+### Bug Fixes
+- **Audio Synchronization:** Addressed a bug where subtitles would occasionally go out of sync with the audio in the final rendered video.
+- **Memory Management:** Fixed a memory leak that occurred during the analysis of high-resolution videos, improving the application's stability.
+
+### New Features
+- **Split-Screen Layout:** Introduced a new split-screen layout option for the final video, allowing for more dynamic and engaging content creation.
+- **Customizable Subtitle Styles:** Users can now customize the font, size, and color of the subtitles, providing more control over the final look of the video.
+
+## Version 4.2.1
+
+### Bug Fixes
+- **YouTube URL Parsing:** Fixed a critical bug that prevented the application from correctly parsing certain YouTube video URLs.
+- **File Naming:** Resolved an issue where special characters in video titles would cause errors when saving the final output file.
+
+### New Features
+- **Automatic Resumption:** The application can now automatically resume from the last completed step if it's interrupted, saving users from having to restart the entire process.
+- **Interactive Mode:** Added an interactive mode that prompts the user for input at each stage of the process, providing more control and flexibility.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
