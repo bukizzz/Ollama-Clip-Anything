@@ -46,7 +46,6 @@ ollama_downloads/
 temp_processing/
 logs/
 tests/
-weights/
 ANSWERS.md
 CHANGELOG.md
 GEMINI_WORKFILE.md
