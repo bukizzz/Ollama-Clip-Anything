@@ -11,19 +11,172 @@ log_dir: "logs"
 
 # Model settings
 whisper_model: "base"
-llm_model: "gemini-2.5-flash" # Default LLM for general tasks
 
 # LLM configuration (for specific LLM interactions)
 llm:
   min_model: "MiniCPM"
-  image_model: "llava:latest" # Model for image recognition tasks
   api_keys:
     openai: "YOUR_OPENAI_KEY"
     ollama: "http://localhost:11434"
-    gemini: "AIzaSyC1PN8c7Vn-O3q-ZP1b8RjaOx6aNP--d5Y" # Added for Gemini API key
-  ollama_keep_alive: 2 # Keep Ollama models loaded indefinitely
-  # Removed redundant gemini_model entry
+    gemini: "AIzaSyAUzFwuDG1etv1-1224LxXDg1qKh5iSq2U" # Added for Gemini API key
+  ollama_keep_alive: -1 # Keep Ollama models loaded indefinitely
 
+  # Priority lists for LLM and image recognition tasks
+  llm_models_priority:
+    - "gemini-2.5-flash-preview-04-17"
+    - "gemini-2.0-flash"
+    - "gemini-2.5-flash-lite-preview-06-17"
+    - "gemma-3-27b-it"
+    - "gemma-3-12b-it"
+    - "gemma-3-4b-it"
+    - "gemma-3-1b-it"
+    - "qwen2.5-coder:latest"
+  current_active_llm_model: "gemini-2.5-flash-preview-04-17" # Dynamically updated
+
+  image_models_priority:
+    - "gemma-3-12b-it"
+    - "gemma-3-4b-it"
+    - "gemma-3-1b-it"
+    - "llava:latest" 
+    - "qwen2.5vl:3b"
+  current_active_image_model: "gemma-3-12b-it" # Dynamically updated
+
+  # Detailed configuration for each model
+  models:
+
+    # Gemma Models
+
+    "gemma-3-1b-it": # Text only model
+      requests_per_minute: 30
+      requests_per_day: 14400
+      provider: "gemini"
+
+    "gemma-3-4b-it":
+      requests_per_minute: 30
+      requests_per_day: 14400
+      provider: "gemini"
+
+    "gemma-3-12b-it":
+      requests_per_minute: 30
+      requests_per_day: 14400
+      provider: "gemini"
+
+    "gemma-3-27b-it":
+      requests_per_minute: 30
+      requests_per_day: 14400
+      provider: "gemini"
+
+    # Gemini 2.5 Models
+
+    "gemini-2.5-flash":
+      requests_per_minute: 10
+      requests_per_day: 500
+      provider: "gemini"
+
+    "gemini-2.5-flash-preview-04-17":
+      requests_per_minute: 10
+      requests_per_day: 500
+      provider: "gemini"
+
+    "gemini-2.5-flash-lite-preview-06-17":
+      requests_per_minute: 15
+      requests_per_day: 500
+      provider: "gemini"
+
+    # Gemini 2.0 Models
+
+    "gemini-2.0-flash":
+      requests_per_minute: 15
+      requests_per_day: 1500
+      provider: "gemini"
+
+    "gemini-2.0-flash-preview-image-generation":
+      requests_per_minute: 10
+      requests_per_day: 1500
+      provider: "gemini"
+
+    "gemini-2.0-flash-lite":
+      requests_per_minute: 30
+      requests_per_day: 1500
+      provider: "gemini"
+
+    "gemini-2.0-flash-lite":
+      requests_per_minute: 30
+      requests_per_day: 1500
+      provider: "gemini"
+
+    # Ollama Models
+
+    ## Llama
+
+    "llama3.1:8b":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    # Phi
+
+    "phi3:3.8b":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    "phi3:3.8b-instruct":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    ## Gemma
+
+    "gemma3:4b":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    "codegemma:7b":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    "codegemma:7b-instruct":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    ## Deepseek
+
+    "deepseek-coder:6.7b":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    ## Qwen
+
+    "qwen2.5-coder:latest":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    "qwen3:8b":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    ## Dolphin
+
+    "dolphin3:latest":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    ## Mistral
+
+    "mistral:latest":
+      requests_per_minute: null 
+      requests_per_day: null 
+      provider: "ollama"
+
+    
 # Subtitle settings
 subtitle_font_families: ['Impact', 'Arial Black', 'Bebas Neue']
 subtitle_background_color: 'FFA500'

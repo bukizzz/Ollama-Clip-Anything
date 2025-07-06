@@ -117,39 +117,47 @@ CRITICAL REQUIREMENTS:
 3. The response must be a JSON object containing the following format:
 
 REQUIRED JSON FORMAT:
-{
-    "clip_description": "Brief description of the clip",
-    "total_duration": "The sum of all scene durations in seconds",
-    "reason": "Why this clip was selected",
-    "viral_potential_score": 8,
-    "scenes": [
-        {
-            "start_time": 120.0,
-            "end_time": 135.0,
-            "scene_duration": 15.0,
-            "description": "What happens in this scene"
-        }
-        {
-            "start_time": 140.0,
-            "end_time": 153.0,
-            "scene_duration": 13.0,
-            "description": "What happens in this scene"
-        }
-        {
-            "start_time": 160.0,
-            "end_time": 195.0,
-            "scene_duration": 35.0,
-            "description": "What happens in this scene"
-        }
-        {
-            "start_time": 200,
-            "end_time": 212.0,
-            "scene_duration": 12.0,
-            "description": "What happens in this scene"
-        }
-    ]
-}
-
+[
+    clip_1{
+        "clip_description": "Brief description of the clip",
+        "total_duration": "The sum of all scene durations in seconds",
+        "reason": "Why this clip was selected",
+        "viral_potential_score": 8,
+        "scenes": [
+            {
+                "start_time": 120.0,
+                "end_time": 135.0,
+                "scene_duration": 15.0,
+                "description": "What happens in this scene"
+            }
+            {
+                "start_time": 140.0,
+                "end_time": 153.0,
+                "scene_duration": 13.0,
+                "description": "What happens in this scene"
+            }
+            {
+                "start_time": 160.0,
+                "end_time": 195.0,
+                "scene_duration": 35.0,
+                "description": "What happens in this scene"
+            }
+            {
+                "start_time": 200,
+                "end_time": 212.0,
+                "scene_duration": 12.0,
+                "description": "What happens in this scene"
+            }
+        ]
+    }
+    clip_2{
+        ...
+    }
+    clip_3{
+        ...
+    }
+    ...
+]
 
 IMPORTANT: 
 - Sum of all scene_duration MUST BE EQUAL to total_duration
@@ -161,7 +169,7 @@ IMPORTANT:
 """
 
 main_prompt = """
-Analyze the following video transcript and extract the most engaging, funny clip that is exactly 60-90 seconds long.
+Analyze the following video transcript and extract 5 of the most engaging, funny clips that are exactly 60-90 seconds long.
 
 VALIDATION CHECKLIST before responding:
 1. Sum of all scene_duration is equal to total_duration
@@ -242,13 +250,14 @@ def cleanup():
 
     # Unload all currently loaded Ollama models
     try:
-        primary_llm_model = config.get('llm.model')
-        if primary_llm_model and primary_llm_model.startswith("ollama"):
-            gpu_manager.unload_ollama_model(primary_llm_model)
+        # Get current active models from config
+        current_active_llm_model = config.get('llm.current_active_llm_model')
+        if current_active_llm_model and current_active_llm_model.startswith("ollama"):
+            gpu_manager.unload_ollama_model(current_active_llm_model)
 
-        image_llm_model = config.get('llm.image_model')
-        if image_llm_model and image_llm_model.startswith("ollama"):
-            gpu_manager.unload_ollama_model(image_llm_model)
+        current_active_image_model = config.get('llm.current_active_image_model')
+        if current_active_image_model and current_active_image_model.startswith("ollama"):
+            gpu_manager.unload_ollama_model(current_active_image_model)
 
     except Exception as e:
         error_logger.warning(f"Could not unload Ollama models: {e}", exc_info=True)
@@ -260,19 +269,123 @@ def cleanup():
     gc.collect()
     time.sleep(1) # Add a small delay to allow memory to be released
 
+    _log_daily_usage() # Log any unsaved usage data on cleanup
 
-def llm_pass(model_name: str, messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
+
+# Module-level dictionary to store daily usage data per model config
+_daily_usage_data: Dict[str, Dict[str, Any]] = {} # Changed to be keyed by model name
+_last_reset_date: str = "" # To store the date of the last reset
+_last_request_timestamps: Dict[str, float] = {} # To track last request time for proactive rate limiting
+
+def _initialize_daily_usage():
+    """
+    Initializes or resets daily usage counters based on the current date.
+    Logs previous day's usage if a new day has started.
+    """
+    global _daily_usage_data, _last_reset_date
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    log_dir = config.get('log_dir', 'logs')
+    usage_log_file = os.path.join(log_dir, 'usage.logs')
+    llm_logger = logging.getLogger('llm')
+
+    # Load existing usage data if available and not already loaded for the current session
+    if not _last_reset_date and os.path.exists(usage_log_file):
+        try:
+            with open(usage_log_file, 'r') as f:
+                lines = f.readlines()
+                if lines:
+                    # Try to parse the last line as JSON for the most recent state
+                    last_line = lines[-1].strip()
+                    if last_line.startswith('{') and last_line.endswith('}'):
+                        loaded_data = json.loads(last_line)
+                        _last_reset_date = loaded_data.get('last_reset_date', "")
+                        # Only load model specific data if it matches the current date
+                        if _last_reset_date == current_date:
+                            # Load usage data for each model found in the log
+                            for model_name, usage_info in loaded_data.items():
+                                if model_name != 'last_reset_date':
+                                    _daily_usage_data[model_name] = usage_info
+                            llm_logger.info(f"Loaded previous daily usage data for {current_date}: {_daily_usage_data}")
+                        else:
+                            llm_logger.info(f"Previous usage data is for {_last_reset_date}. Starting fresh for {current_date}.")
+        except json.JSONDecodeError:
+            llm_logger.warning(f"Could not decode JSON from {usage_log_file}. Starting fresh.")
+        except Exception as e:
+            llm_logger.error(f"Error loading usage data from {usage_log_file}: {e}")
+
+    # Check if it's a new day or if data was not loaded for the current day
+    if _last_reset_date != current_date:
+        if _last_reset_date: # If there was old data (even if not for current day), log it before resetting
+            llm_logger.info(f"New day detected. Logging previous day's usage for {_last_reset_date}:")
+            _log_daily_usage(reset=False) # Log without resetting first
+        
+        # Reset for the current day
+        _daily_usage_data = {} # Reset to empty dict
+        _last_reset_date = current_date
+        llm_logger.info(f"Daily usage counters reset for {current_date}.")
+        _log_daily_usage(reset=False) # Log the reset state immediately
+
+def _log_daily_usage(reset: bool = False):
+    """
+    Logs the current daily usage data to a file.
+    If reset is True, it also clears the in-memory counters.
+    """
+    global _daily_usage_data, _last_reset_date
+    log_dir = config.get('log_dir', 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    usage_log_file = os.path.join(log_dir, 'usage.logs')
+    
+    llm_logger = logging.getLogger('llm')
+
+    if _daily_usage_data:
+        try:
+            # Combine _daily_usage_data with last_reset_date for logging
+            log_entry = {
+                'last_reset_date': _last_reset_date,
+                **_daily_usage_data
+            }
+            with open(usage_log_file, 'a') as f: # Append mode
+                f.write(json.dumps(log_entry) + "\n")
+            llm_logger.info(f"Daily usage data logged to {usage_log_file}")
+        except Exception as e:
+            llm_logger.error(f"Failed to write daily usage data to file: {e}")
+    
+    if reset:
+        _daily_usage_data = {} # Reset to empty dict
+        _last_reset_date = datetime.now().strftime("%Y-%m-%d")
+        llm_logger.info("In-memory daily usage counters reset.")
+
+
+def llm_pass(model_name: str, provider: str, requests_per_minute: float, requests_per_day: float, messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
     """Send messages to LLM model and return raw response content."""
     llm_logger = logging.getLogger('llm')
     error_logger = logging.getLogger('errors')
     
-    # Determine the model to use based on whether an image path is provided
-    # This logic is now handled by the caller (robust_llm_json_extraction)
-    # The model_name passed here should already be the correct one.
-    model_to_use = model_name 
-    
-    # Create a copy of messages to ensure we don't modify the original list passed in
+    _initialize_daily_usage() # Ensure daily counters are up-to-date
+
     messages_to_send = [msg.copy() for msg in messages] 
+
+    # Proactive Rate Limiting (Requests Per Minute)
+    if requests_per_minute != float('inf'):
+        min_interval_between_requests = (60 / requests_per_minute) * 1.1 # 10% buffer
+        last_req_time = _last_request_timestamps.get(model_name, 0.0)
+        time_since_last_request = time.time() - last_req_time
+
+        if time_since_last_request < min_interval_between_requests:
+            sleep_duration = min_interval_between_requests - time_since_last_request
+            llm_logger.info(f"Proactive rate limit: Sleeping for {sleep_duration:.2f} seconds for {model_name}...")
+            time.sleep(sleep_duration)
+    
+    _last_request_timestamps[model_name] = time.time() # Update timestamp after potential sleep
+
+    # Proactive Daily Limit Check
+    current_requests = _daily_usage_data.get(model_name, {}).get('requests', 0)
+    if current_requests >= requests_per_day:
+        llm_logger.warning(f"Proactive daily quota check: {model_name} has reached its daily limit ({current_requests}/{requests_per_day}).")
+        # This function no longer handles model switching. It just raises an error.
+        # The calling function (robust_llm_json_extraction) will handle the switch.
+        raise RuntimeError(f"Daily quota exhausted for model: {model_name}")
+
 
     try:
         # Prepare image content if an image path is provided
@@ -280,7 +393,6 @@ def llm_pass(model_name: str, messages: List[Dict[str, Any]], image_path: Option
             with open(image_path, "rb") as image_file:
                 encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
             
-            # Find or add the user message and add the image content
             user_message_found = False
             for msg in messages_to_send:
                 if msg['role'] == 'user':
@@ -289,10 +401,8 @@ def llm_pass(model_name: str, messages: List[Dict[str, Any]], image_path: Option
                     elif isinstance(msg['content'], str):
                         msg['content'] = [{"type": "text", "text": msg['content']}]
                     elif not isinstance(msg['content'], list):
-                        # Handle unexpected content type by converting to string and wrapping
                         msg['content'] = [{"type": "text", "text": str(msg['content'])}]
                     
-                    # Explicitly cast msg['content'] to List[Dict[str, Any]] to satisfy type checker
                     content_list: List[Dict[str, Any]] = cast(List[Dict[str, Any]], msg['content'])
                     content_list.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"}})
                     
@@ -322,41 +432,48 @@ def llm_pass(model_name: str, messages: List[Dict[str, Any]], image_path: Option
                 censored_messages.append(msg)
 
         llm_logger.debug(f"Messages sent to LLM: {censored_messages}")
-        llm_logger.info(f"Using model: {model_to_use}") # Log the determined model
+        llm_logger.info(f"Using model: {model_name}") # Log the determined model
         
         format_param = "json" if use_json_format else None # Apply JSON format if requested
 
-        if model_to_use.startswith("gemini"):
+        if provider == "gemini":
             gemini_api_key = config.get('llm.api_keys.gemini')
             if not gemini_api_key:
                 raise ValueError("Gemini API key not found in config (llm.api_keys.gemini).")
             
-            # ChatGoogleGenerativeAI expects content in a specific format for multimodal
-            # If image_path is provided, ensure content is a list of dicts
-            if image_path:
-                # Langchain's ChatGoogleGenerativeAI handles the image_url format directly
-                # The messages_to_send should already be in the correct format from the image_path handling above
-                pass
-            
             llm_model = ChatGoogleGenerativeAI(
-                model=model_to_use, # Use the determined model
+                model=model_name, # Use the determined model
                 temperature=0,
                 google_api_key=gemini_api_key,
                 convert_system_message_to_human=True # Gemini often prefers system messages as human
             )
-            # For Gemini, the 'format' parameter is not directly passed to the constructor
-            # Instead, it's handled by the prompt or by parsing the output.
             
-        else: # Default to Ollama for any other model name
+        elif provider == "ollama": # Default to Ollama for any other model name
             ollama_keep_alive = config.get('llm.ollama_keep_alive', -1)
             llm_model = ChatOllama(
-                model=model_to_use, # Use the determined model
+                model=model_name, # Use the determined model
                 temperature=0, 
                 format=format_param, 
                 keep_alive=ollama_keep_alive
             )
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
         
         response = llm_model.invoke(messages_to_send)
+
+        # Update daily usage counters after successful request
+        _daily_usage_data.setdefault(model_name, {'requests': 0, 'tokens': 0})
+        _daily_usage_data[model_name]['requests'] += 1
+        # Safely access usage_metadata from response_metadata if available
+        if hasattr(response, 'response_metadata') and 'usage_metadata' in response.response_metadata:
+            usage_metadata = response.response_metadata['usage_metadata']
+            total_tokens = usage_metadata.get('total_tokens', 0)
+            _daily_usage_data[model_name]['tokens'] += total_tokens
+            llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']}, Tokens={_daily_usage_data[model_name]['tokens']}")
+        else:
+            llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']} (token usage not available).")
+        _log_daily_usage(reset=False) # Log after each successful request
+
         return str(response.content)
     except Exception as e:
         error_logger.error(f"LLM request failed: {e}", exc_info=True)
@@ -467,14 +584,24 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
     llm_logger = logging.getLogger('llm')
     error_logger = logging.getLogger('errors')
     
-    llm_model_name = config.get('llm.model') # Standardize config access
-    if not llm_model_name:
-        llm_model_name = config.get('llm_model') # Fallback for older config
-        if not llm_model_name:
-            raise ValueError("LLM model name not found in config (llm.model or llm_model).")
+    # Determine which model configuration to use
+    config_key = 'image_model' if image_path else 'llm_model'
+    model_name = config.get(f'llm.current_active_{config_key}')
+    
+    if not model_name:
+        raise ValueError(f"Current active model not found in config for {config_key}.")
 
-    # Determine the model name to pass to llm_pass based on image_path
-    model_to_pass = config.get('llm.image_model') if image_path else llm_model_name
+    # Get model-specific details from the 'models' dictionary
+    model_details = config.get(f'llm.models.{model_name}')
+    if not model_details:
+        raise ValueError(f"Model details not found for '{model_name}' in llm.models config.")
+
+    provider = model_details.get('provider')
+    requests_per_minute = model_details.get('requests_per_minute', float('inf'))
+    requests_per_day = model_details.get('requests_per_day', float('inf'))
+
+    if not provider:
+        raise ValueError(f"Provider not specified for model '{model_name}'.")
 
     for attempt in range(max_attempts):
         llm_logger.info(f"Attempting JSON extraction (Pass {attempt + 1}/{max_attempts})...")
@@ -487,8 +614,11 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
         raw_llm_response_content = ""
         try:
             raw_llm_response_content = llm_pass(
-                model_to_pass, # Use the determined model name
-                messages, 
+                model_name=model_name,
+                provider=provider,
+                requests_per_minute=requests_per_minute,
+                requests_per_day=requests_per_day,
+                messages=messages, 
                 image_path=image_path,
                 use_json_format=(not image_path)
             )
@@ -511,6 +641,31 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
             
         except (ValidationError, ValueError, json.JSONDecodeError) as e:
             error_logger.error(f"JSON validation/parsing failed on pass {attempt + 1}: {e}. Raw LLM response: {raw_llm_response_content[:500]}...", exc_info=True)
+            
+            # Check for daily quota exhaustion and switch models persistently
+            if "Daily quota exhausted" in str(e) or "GenerateRequestsPerDayPerProjectPerModel-FreeTier" in str(e):
+                llm_logger.warning(f"Daily quota exhausted for {model_name}. Attempting to switch to secondary model.")
+                try:
+                    config.update_llm_active_model(config_key)
+                    # Reload config to get the new active model
+                    config._load_config() 
+                    # Update model_name and its details for the next attempt
+                    model_name = config.get(f'llm.current_active_{config_key}')
+                    model_details = config.get(f'llm.models.{model_name}')
+                    if not model_details:
+                        raise ValueError(f"Model details not found for new active model '{model_name}'.")
+                    provider = model_details.get('provider')
+                    requests_per_minute = model_details.get('requests_per_minute', float('inf'))
+                    requests_per_day = model_details.get('requests_per_day', float('inf'))
+
+                    llm_logger.info(f"Switched to new active model: {model_name}. Retrying...")
+                    # Reset attempt counter to retry with the new model
+                    attempt = -1 # Will become 0 at the start of the next loop iteration
+                    continue
+                except Exception as switch_e:
+                    error_logger.error(f"Failed to switch LLM model: {switch_e}", exc_info=True)
+                    if attempt == max_attempts - 1:
+                        raise ValueError(f"Failed to extract and correct valid JSON after {max_attempts} attempts. Last error: {e}") from e
             
             if attempt < max_attempts - 1:
                 llm_logger.info("Attempting LLM self-correction...")
@@ -566,8 +721,11 @@ Provide ONLY the corrected JSON with the correct total_duration value:
                 ]
                 try:
                     corrected_raw_response = llm_pass(
-                        model_to_pass, # Use the determined model name
-                        correction_messages,
+                        model_name=model_name,
+                        provider=provider,
+                        requests_per_minute=requests_per_minute,
+                        requests_per_day=requests_per_day,
+                        messages=correction_messages,
                         use_json_format=True
                     )
                     

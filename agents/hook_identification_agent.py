@@ -3,6 +3,7 @@ from core.state_manager import set_stage_status
 from llm import llm_interaction
 import numpy as np
 from pydantic import BaseModel, Field
+import json # Added json import
 
 class HookIdentificationAgent(Agent):
     def __init__(self, config, state_manager):
@@ -46,6 +47,27 @@ class HookIdentificationAgent(Agent):
                         quotability_score: float = Field(description="A score from 0 to 1 indicating how quotable the moment is.", ge=0, le=1)
                         reason: str = Field(description="Explanation for the assessment.")
 
+                    # Updated system prompt to enforce JSON output
+                    system_prompt_for_hook_analysis = f"""
+                    You are an expert in identifying narrative hooks and quotable moments from text.
+                    You MUST respond with ONLY a valid JSON object that strictly adheres to the following schema:
+
+                    {{
+                        "is_hook": boolean,
+                        "quotability_score": float (between 0 and 1),
+                        "reason": string
+                    }}
+
+                    Example:
+                    {{
+                        "is_hook": true,
+                        "quotability_score": 0.85,
+                        "reason": "This phrase is highly impactful and sets up a clear conflict."
+                    }}
+
+                    Do NOT include any other text, explanations, or markdown fences (e.g., ```json).
+                    """
+
                     prompt = f"""
                     Analyze this text from a video transcript at {timestamp:.2f}s: "{text}"
                     Is this a strong narrative hook or a highly quotable moment?
@@ -53,7 +75,7 @@ class HookIdentificationAgent(Agent):
                     print(f"🧠 Analyzing potential hook at {timestamp:.2f}s with LLM...")
                     try:
                         analysis_obj = llm_interaction.robust_llm_json_extraction(
-                            system_prompt="You are an expert in identifying narrative hooks and quotable moments from text.",
+                            system_prompt=system_prompt_for_hook_analysis, # Use the new system prompt
                             user_prompt=prompt,
                             output_schema=HookAnalysis
                         )

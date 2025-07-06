@@ -1,5 +1,5 @@
 import cv2
-import numpy as np # Added numpy import
+import numpy as np
 from agents.base_agent import Agent
 from core.state_manager import set_stage_status
 
@@ -12,9 +12,13 @@ class LayoutDetectionAgent(Agent):
         
         # Replaced CascadeClassifier with YuNet DNN model
         self.face_detector = cv2.dnn.readNetFromONNX("weights/face_detection_yunet_2023mar.onnx")
-        self.face_detector.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-        self.face_detector.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
         self.input_size = (320, 320) # YuNet input size, can be adjusted
+
+        # Force CPU backend to avoid CUDA assertion errors
+        self.face_detector.setPreferableBackend(cv2.dnn.DNN_BACKEND_DEFAULT)
+        self.face_detector.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+        self.log_info("Using CPU backend for layout detection.")
+
 
     def execute(self, context):
         video_path = context.get('processed_video_path')
@@ -51,16 +55,17 @@ class LayoutDetectionAgent(Agent):
 
                 # Post-process detections
                 faces = []
-                # detections is a 1x1xNx15 array, where N is the number of detections
+                # detections is typically a 1xNx15 array, where N is the number of detections
                 # Each detection is [batch_id, class_id, score, x1, y1, x2, y2, ...]
-                for i in range(detections.shape[2]):
-                    confidence = detections[0, 0, i, 2]
+                # Corrected loop and indexing for 3-dimensional array (1, N, 15)
+                for i in range(detections.shape[1]): # Iterate over N (number of detections)
+                    confidence = detections[0, i, 2] # Accessing score
                     if confidence > confidence_threshold:
                         # Extract bounding box coordinates (x1, y1, x2, y2)
-                        x1 = int(detections[0, 0, i, 3] * w)
-                        y1 = int(detections[0, 0, i, 4] * h)
-                        x2 = int(detections[0, 0, i, 5] * w)
-                        y2 = int(detections[0, 0, i, 6] * h)
+                        x1 = int(detections[0, i, 3] * w)
+                        y1 = int(detections[0, i, 4] * h)
+                        x2 = int(detections[0, i, 5] * w)
+                        y2 = int(detections[0, i, 6] * h)
                         faces.append([x1, y1, x2 - x1, y2 - y1]) # Convert to x, y, w, h format if needed
 
                 num_faces = len(faces)

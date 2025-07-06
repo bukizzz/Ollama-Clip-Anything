@@ -5,7 +5,7 @@ import argparse
 import logging
 from tqdm import tqdm
 
-from core.config import config
+from core.config import config # Re-importing to ensure recognition
 from core.utils import terminate_existing_processes
 from core import temp_manager
 from core import state_manager
@@ -211,14 +211,13 @@ def main(args: dict):
             BrollAnalysisAgent(config, state_manager),
             LLMSelectionAgent(config, state_manager),
             QwenVisionAgent(config, state_manager),
-            ContentAlignmentAgent(config, state_manager),
             VideoAnalysisAgent(config, state_manager),
             EngagementAnalysisAgent(config, state_manager),
             LayoutDetectionAgent(config, state_manager),
             SpeakerTrackingAgent(config, state_manager),
             HookIdentificationAgent(config, state_manager),
-            IntroNarrationAgent(config, state_manager),
-            LLMVideoDirectorAgent(config, state_manager),
+            LLMVideoDirectorAgent(config, state_manager), # Moved before ContentAlignmentAgent
+            ContentAlignmentAgent(config, state_manager),
             ViralPotentialAgent(config, state_manager),
             DynamicEditingAgent(config, state_manager),
             MusicSyncAgent(config, state_manager),

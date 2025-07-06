@@ -2,14 +2,14 @@ from agents.base_agent import Agent
 from core.state_manager import set_stage_status
 from llm import llm_interaction
 from pydantic import BaseModel, Field
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 
 class CutDecision(BaseModel):
-    start_time: float = Field(description="The start time of the clip segment in seconds.")
-    end_time: float = Field(description="The end time of the clip segment in seconds.")
+    start: float = Field(description="The start time of the clip segment in seconds.")
+    end: float = Field(description="The end time of the clip segment in seconds.")
     reason: str = Field(description="A brief explanation for the cut decision (e.g., \"high engagement moment\", \"speaker transition\", \"scene change\").")
-    key_elements: List[str] = Field(description="A list of key visual or audio elements present in this segment.")
-    viral_potential_score: int = Field(description="An estimated score for viral potential (0-10).", ge=0, le=10)
+    key_elements: Optional[List[str]] = Field(default_factory=list, description="A list of key visual or audio elements present in this segment.")
+    viral_potential_score: Optional[int] = Field(default=0, description="An estimated score for viral potential (0-10).", ge=0, le=10)
 
 class CutDecisions(BaseModel):
     cut_decisions: List[CutDecision]
@@ -92,11 +92,12 @@ class LLMVideoDirectorAgent(Agent):
                 output_schema=CutDecisions
             )
             
-            llm_cut_decisions = llm_cut_decisions_obj.cut_decisions
+            # Convert Pydantic models to dictionaries for JSON serialization
+            llm_cut_decisions_dicts = [decision.model_dump() for decision in llm_cut_decisions_obj.cut_decisions]
 
-            context['llm_cut_decisions'] = llm_cut_decisions
-            print(f"✅ LLM Video Director orchestration complete. Generated {len(llm_cut_decisions)} cut decisions.")
-            set_stage_status('llm_video_director_complete', 'complete', {'num_cut_decisions': len(llm_cut_decisions)})
+            context['llm_cut_decisions'] = llm_cut_decisions_dicts
+            print(f"✅ LLM Video Director orchestration complete. Generated {len(llm_cut_decisions_dicts)} cut decisions.")
+            set_stage_status('llm_video_director_complete', 'complete', {'num_cut_decisions': len(llm_cut_decisions_dicts)})
             return context
 
         except Exception as e:

@@ -20,8 +20,14 @@ class Config:
         return cls._instance
 
     def _load_config(self):
+        """Loads or reloads configuration from config.yaml."""
         with open(CONFIG_FILE_PATH, 'r') as f:
             self._config_data = yaml.safe_load(f)
+
+    def _save_config(self):
+        """Saves the current configuration data back to config.yaml."""
+        with open(CONFIG_FILE_PATH, 'w') as f:
+            yaml.safe_dump(self._config_data, f, indent=2)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Retrieves a configuration value by key, with optional default."""
@@ -34,10 +40,42 @@ class Config:
                 return default
         return val
 
+    def update_llm_active_model(self, config_key: str):
+        """
+        Switches the current_active_model for a given LLM model type
+        (e.g., 'llm_model' or 'image_model')
+        by moving to the next model in its priority list and persists the change to config.yaml.
+        """
+        self._load_config() # Ensure we're working with the latest config
+        
+        llm_config = self._config_data['llm']
+        
+        priority_list_key = f"{config_key}s_priority" # e.g., 'llm_models_priority'
+        current_active_model_key = f"current_active_{config_key}" # e.g., 'current_active_llm_model'
+
+        priority_list = llm_config.get(priority_list_key)
+        current_active_model_name = llm_config.get(current_active_model_key)
+
+        if not priority_list or not isinstance(priority_list, list) or not priority_list:
+            raise ValueError(f"Priority list '{priority_list_key}' not found or is empty in LLM configuration.")
+
+        try:
+            current_index = priority_list.index(current_active_model_name)
+            next_index = (current_index + 1) % len(priority_list)
+            new_active_model = priority_list[next_index]
+            llm_config[current_active_model_key] = new_active_model
+            print(f"Switched {config_key} from {current_active_model_name} to {new_active_model}.")
+        except ValueError:
+            # current_active_model_name not found in priority_list, default to first
+            new_active_model = priority_list[0]
+            llm_config[current_active_model_key] = new_active_model
+            print(f"Resetting {config_key} active model to first in list ({new_active_model}) as current was unknown or not in list.")
+
+        self._save_config() # Persist the change
+        self._load_config() # Reload the in-memory config to reflect the saved changes
+
 # Instantiate the Config class to load settings on import
 config = Config()
 
 # Expose commonly used config values directly for convenience
 CLIP_DURATION_RANGE = (config.get('clip_duration_min'), config.get('clip_duration_max'))
-
-

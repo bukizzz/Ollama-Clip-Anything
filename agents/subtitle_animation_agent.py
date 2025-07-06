@@ -26,11 +26,34 @@ class SubtitleAnimationAgent(Agent):
         set_stage_status('subtitle_animation', 'running')
 
         try:
-            speaker_colors = {s: f"FF{i*40:02X}{255-i*40:02X}" for i, s in enumerate(speaker_tracking.get('speaker_to_face_map', {}).keys())}
+            speaker_to_face_map = speaker_tracking.get('speaker_to_face_map')
+            # Ensure speaker_to_face_map is a dictionary, default to empty if not
+            if not isinstance(speaker_to_face_map, dict):
+                speaker_to_face_map = {} 
+
+            speaker_colors = {}
+            # Filter out None values from keys before enumeration
+            valid_speaker_keys = [s for s in speaker_to_face_map.keys() if s is not None]
+            for i, s in enumerate(valid_speaker_keys):
+                speaker_colors[s] = f"FF{i*40:02X}{255-i*40:02X}"
 
             animated_subtitle_paths = []
             for i, clip in enumerate(clips, 1):
-                start, end = clip['start'], clip['end']
+                # Extract start and end times from the first and last scene of the clip
+                if not clip.get('scenes') or not clip['scenes']: # Added check for empty list
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has no scenes or an empty scenes list. Skipping.")
+                    continue
+                
+                # Ensure the first and last scenes are not None before accessing
+                first_scene = clip['scenes'][0]
+                last_scene = clip['scenes'][-1]
+
+                if first_scene is None or last_scene is None:
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has None in its scenes list. Skipping.")
+                    continue
+
+                start = first_scene['start_time']
+                end = last_scene['end_time']
                 
                 clip_transcript = [seg for seg in transcription if start <= seg['start'] < end]
                 if not clip_transcript:
@@ -39,11 +62,21 @@ class SubtitleAnimationAgent(Agent):
                 layout_rec = next((item for item in layout_recommendations if item['clip_start'] == start), {'recommended_layout': 'default'})
                 
                 ass_path = get_temp_path(f"animated_subtitles_clip_{i}.ass")
+
+                # Ensure video_info is a dictionary and has 'height'
+                video_height = None
+                if isinstance(video_info, dict) and 'height' in video_info:
+                    video_height = video_info['height']
+                else:
+                    self.log_error("video_info is missing or does not contain 'height'. Cannot generate subtitles.")
+                    set_stage_status('subtitle_animation', 'failed', {'reason': 'Missing video_info height'})
+                    return context
+
                 create_ass_file(
                     clip_transcript,
                     ass_path,
                     time_offset=int(start),
-                    video_height=video_info['height'],
+                    video_height=video_height,
                     layout=layout_rec['recommended_layout'],
                     speaker_colors=speaker_colors if self.subtitle_animation_config.get('speaker_color_coding_enabled') else None
                 )

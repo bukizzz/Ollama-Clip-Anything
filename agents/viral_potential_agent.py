@@ -31,7 +31,13 @@ class ViralPotentialAgent(Agent):
         try:
             scored_clips = []
             for clip in clips:
-                start, end = clip['start'], clip['end']
+                # Extract start and end times from the first and last scene of the clip
+                if not clip.get('scenes'):
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has no scenes. Skipping.")
+                    continue
+                
+                start = clip['scenes'][0]['start_time']
+                end = clip['scenes'][-1]['end_time']
                 
                 # Engagement score for the clip
                 clip_engagement = [s['engagement_score'] for s in engagement_results if start <= s['timestamp'] <= end]
@@ -53,7 +59,7 @@ class ViralPotentialAgent(Agent):
                 print(f"🧠 Generating viral potential recommendations with LLM for clip {start:.2f}s - {end:.2f}s...")
                 prompt = f"""
                 A video clip from {start:.2f}s to {end:.2f}s has a viral potential score of {viral_score:.2f}/10.
-                Content: "{clip['text']}"
+                Content: "{clip['clip_description']}"
                 Provide a brief, actionable recommendation to enhance its virality.
                 """
                 try:
@@ -66,7 +72,7 @@ class ViralPotentialAgent(Agent):
                 except Exception:
                     recommendation = "N/A"
 
-                scored_clips.append({**clip, 'viral_potential_score': viral_score, 'recommendation': recommendation})
+                scored_clips.append({**clip, 'viral_potential_score': viral_score, 'recommendation': recommendation, 'start': start, 'end': end})
 
             context['clips'] = sorted(scored_clips, key=lambda x: x['viral_potential_score'], reverse=True)
             print("✅ Viral potential assessment complete.")

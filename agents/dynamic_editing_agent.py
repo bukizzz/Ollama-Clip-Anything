@@ -24,7 +24,13 @@ class DynamicEditingAgent(Agent):
         try:
             editing_decisions = []
             for clip in clips:
-                start, end = clip['start'], clip['end']
+                # Extract start and end times from the first and last scene of the clip
+                if not clip.get('scenes'):
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has no scenes. Skipping.")
+                    continue
+                
+                start = clip['scenes'][0]['start_time']
+                end = clip['scenes'][-1]['end_time']
                 
                 # Optimal cut points from LLM Director
                 for cut in llm_director_cuts:
