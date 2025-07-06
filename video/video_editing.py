@@ -15,7 +15,7 @@ from video.tracking_manager import TrackingManager
 # Configure MoviePy's logger to capture FFmpeg commands
 logging.setLoggerClass(FFMPEGCommandLogger)
 logger = logging.getLogger('moviepy')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 # Add a StreamHandler to ensure messages are printed to console
 if not logger.handlers:
@@ -54,7 +54,7 @@ def batch_create_enhanced_clips(
                 original_video_path, clip_data, i, video_info, 
                 transcript, processing_settings,
                 tracking_manager,
-                OUTPUT_DIR=config.get('output_dir'),
+                output_dir=config.get('output_dir'),
                 audio_rhythm_data=audio_rhythm_data, 
                 llm_cut_decisions=llm_cut_decisions, 
                 speaker_tracking_results=speaker_tracking_results,
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     print("Available features:")
     print("- Advanced face tracking with animations")
     print("- Object detection and tracking")
-    print("- Scene change detection with zoom effects")
+    "- Scene change detection with zoom effects"
     print("- Word-by-word animated subtitles")
     print("- Intelligent content analysis")
     print("- Batch processing with optimization")

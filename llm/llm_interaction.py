@@ -208,7 +208,7 @@ def setup_logging(video_name: str, video_duration: float, video_quality: str):
     
     # Set level for all loggers
     session_logger.setLevel(logging.INFO)
-    llm_logger.setLevel(logging.INFO)
+    llm_logger.setLevel(logging.WARNING)
     error_logger.setLevel(logging.ERROR) # Changed to ERROR for actual errors
 
     # Prevent adding multiple handlers if setup_logging is called multiple times
@@ -592,7 +592,11 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
         raise ValueError(f"Current active model not found in config for {config_key}.")
 
     # Get model-specific details from the 'models' dictionary
-    model_details = config.get(f'llm.models.{model_name}')
+    all_models = config.get('llm.models')
+    if not all_models or not isinstance(all_models, dict):
+        raise ValueError("LLM models configuration not found or is invalid.")
+    
+    model_details = all_models.get(model_name)
     if not model_details:
         raise ValueError(f"Model details not found for '{model_name}' in llm.models config.")
 

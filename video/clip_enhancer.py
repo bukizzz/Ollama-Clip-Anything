@@ -12,7 +12,7 @@ from core.ffmpeg_command_logger import FFMPEGCommandLogger
 
 logging.setLoggerClass(FFMPEGCommandLogger)
 logger = logging.getLogger('moviepy')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(levelname)s: %(message)s')

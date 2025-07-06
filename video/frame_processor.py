@@ -11,7 +11,7 @@ import logging # Import logging
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO) # Set to INFO to see detailed frame extraction logs
+logger.setLevel(logging.WARNING) # Set to INFO to see detailed frame extraction logs
 
 class FrameProcessor:
     def __init__(self, original_w: int, original_h: int, output_w: int, output_h: int, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None):

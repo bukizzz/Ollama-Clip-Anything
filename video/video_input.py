@@ -44,9 +44,9 @@ def choose_input_video() -> str:
 def download_youtube_video(url: str, quality_choice: Optional[int] = None) -> str:
     """Download YouTube video as MP4 with user selection of quality."""
     # Robustly extract video ID from various YouTube URL formats
-    video_id_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:\?.*)?$", url)
+    video_id_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:[?&].*)?$", url)
     if not video_id_match:
-        video_id_match = re.search(r"youtu\.be\/([0-9A-Za-z_-]{11})(?:\?.*)?$", url)
+        video_id_match = re.search(r"youtu\.be\/([0-9A-Za-z_-]{11})(?:[?&].*)?$", url)
     
     if not video_id_match:
         raise ValueError(f"Could not extract YouTube video ID from URL: {url}. Please provide a valid YouTube video URL.")
