@@ -2,15 +2,14 @@ import os
 import logging
 import time
 from typing import List, Dict, Tuple, Optional
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from core.config import config
 from core.ffmpeg_command_logger import FFMPEGCommandLogger
 from analysis.analysis_and_reporting import create_processing_report, save_processing_report
 from video.clip_enhancer import create_enhanced_individual_clip 
 from video.tracking_manager import TrackingManager
-
-#tqdm.disable = True
 
 # Configure MoviePy's logger to capture FFmpeg commands
 logging.setLoggerClass(FFMPEGCommandLogger)
@@ -47,23 +46,29 @@ def batch_create_enhanced_clips(
     created_clips = []
     failed_clips = []
 
-    for i, clip_data in enumerate(clips_data, 1):
-        try:
-            print(f"\n--- Processing Enhanced Clip {i}/{len(clips_data)} ---")
-            clip_path = create_enhanced_individual_clip(
-                original_video_path, clip_data, i, video_info, 
+    max_workers = config.get('video_production.max_render_workers', os.cpu_count())
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_clip = {
+            executor.submit(create_enhanced_individual_clip,
+                original_video_path, clip_data, i, video_info,
                 transcript, processing_settings,
                 tracking_manager,
                 output_dir=config.get('output_dir'),
-                audio_rhythm_data=audio_rhythm_data, 
-                llm_cut_decisions=llm_cut_decisions, 
+                audio_rhythm_data=audio_rhythm_data,
+                llm_cut_decisions=llm_cut_decisions,
                 speaker_tracking_results=speaker_tracking_results,
                 video_analysis=video_analysis
-            )
-            created_clips.append(clip_path)
-        except Exception as e:
-            print(f"Failed to create enhanced clip {i}: {e}")
-            failed_clips.append(i)
+            ): (clip_data, i) for i, clip_data in enumerate(clips_data, 1)
+        }
+
+        for future in tqdm(as_completed(future_to_clip), total=len(clips_data), desc="Rendering Clips"):
+            clip_data, i = future_to_clip[future]
+            try:
+                clip_path = future.result()
+                created_clips.append(clip_path)
+            except Exception as e:
+                print(f"Failed to create enhanced clip {i}: {e}")
+                failed_clips.append(i)
 
     print(f"\nBatch processing complete: {len(created_clips)} successful, {len(failed_clips)} failed")
     if failed_clips:
@@ -81,6 +86,7 @@ def batch_process_with_analysis(
     audio_rhythm_data: Dict, # New parameter
     llm_cut_decisions: List[Dict], # New parameter
     speaker_tracking_results: Dict, # New parameter
+    output_dir: str, # New parameter
     custom_settings: Optional[Dict] = None
 ) -> Tuple[List[str], Dict]:
     """Complete batch processing pipeline with analysis and optimization"""

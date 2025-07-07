@@ -11,10 +11,10 @@ import logging # Import logging
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING) # Set to INFO to see detailed frame extraction logs
+logger.setLevel(logging.INFO) # Set to INFO to see detailed frame extraction logs
 
 class FrameProcessor:
-    def __init__(self, original_w: int, original_h: int, output_w: int, output_h: int, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None):
+    def __init__(self, original_w: int = 0, original_h: int = 0, output_w: int = 0, output_h: int = 0, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None):
         self.original_w = original_w
         self.original_h = original_h
         self.output_w = output_w
@@ -24,6 +24,99 @@ class FrameProcessor:
         self.layout_manager = LayoutManager()
         self.last_layout = 'single_person_focus' # Initialize to a default string
         self.transition_progress = -1
+
+    def _dhash(self, image, hash_size=8):
+        # Grayscale and resize the image
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(gray, (hash_size + 1, hash_size), interpolation=cv2.INTER_AREA)
+        # Compute the difference hash
+        diff = resized[:, 1:] > resized[:, :-1]
+        return diff
+
+    def _hamming_distance(self, hash1, hash2):
+        return np.count_nonzero(hash1 != hash2)
+
+    def select_smart_frames(self, video_path: str, target_count: int = 100, min_hash_diff: int = 10) -> List[Dict]:
+        """
+        Selects a set of visually distinct and informative frames from a video.
+        Uses perceptual hashing to avoid near-duplicates and Laplacian variance for visual information.
+        """
+        logger.info(f"Starting smart frame selection for {video_path} with target_count={target_count}")
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"Could not open video file: {video_path}")
+            return []
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration_sec = total_frames / fps
+
+        if total_frames == 0:
+            cap.release()
+            return []
+
+        # Determine sampling interval to get roughly target_count candidates
+        # We'll oversample and then filter
+        sampling_interval = max(1, int(total_frames / (target_count * 2))) # Oversample by factor of 2
+
+        candidate_frames = []
+        frame_idx = 0
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            if frame_idx % sampling_interval == 0:
+                timestamp_sec = frame_idx / fps
+                
+                # Calculate dHash
+                dhash = self._dhash(frame)
+                
+                # Calculate Laplacian Variance (visual information)
+                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                laplacian_var = cv2.Laplacian(gray_frame, cv2.CV_64F).var()
+
+                candidate_frames.append({
+                    'frame': frame,
+                    'timestamp_sec': timestamp_sec,
+                    'frame_number': frame_idx,
+                    'dhash': dhash,
+                    'laplacian_var': laplacian_var
+                })
+            frame_idx += 1
+        cap.release()
+
+        # Sort candidates by visual information (descending)
+        candidate_frames.sort(key=lambda x: x['laplacian_var'], reverse=True)
+
+        selected_frames_info = []
+        selected_hashes = []
+
+        for candidate in candidate_frames:
+            is_duplicate = False
+            for existing_hash in selected_hashes:
+                if self._hamming_distance(candidate['dhash'], existing_hash) < min_hash_diff:
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                # Save the frame to a temporary file
+                frame_filename = get_temp_path(f"smart_frame_{len(selected_frames_info):04d}_{int(candidate['timestamp_sec']*1000)}.jpg")
+                cv2.imwrite(frame_filename, candidate['frame'])
+                
+                selected_frames_info.append({
+                    'frame_path': frame_filename,
+                    'timestamp_sec': candidate['timestamp_sec'],
+                    'frame_number': candidate['frame_number'],
+                    'laplacian_var': candidate['laplacian_var'] # Keep for debugging/info
+                })
+                selected_hashes.append(candidate['dhash'])
+
+                if len(selected_frames_info) >= target_count:
+                    break
+        
+        logger.info(f"Selected {len(selected_frames_info)} smart frames.")
+        return selected_frames_info
 
     def process_frame(self, get_frame: Callable[[float], np.ndarray], t: float, layout_info: dict, engagement_metrics: Optional[List[Dict]] = None) -> np.ndarray:
         frame = get_frame(t).copy()

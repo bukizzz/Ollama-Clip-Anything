@@ -11,14 +11,16 @@ class SubtitleAnimationAgent(Agent):
         self.subtitle_animation_config = agent_config.get('subtitle_animation', {})
 
     def execute(self, context):
-        transcription = context.get('transcription', [])
-        video_info = context.get('video_info')
-        clips = context.get('clips', [])
-        speaker_tracking = context.get('speaker_tracking_results', {})
+        # Updated paths to retrieve data from the hierarchical context
+        transcription = context.get('archived_data', {}).get('full_transcription', [])
+        video_info = context.get('metadata', {}).get('video_info')
+        clips = context.get('current_analysis', {}).get('clips', [])
+        layout_speaker_analysis = context.get('current_analysis', {}).get('layout_speaker_analysis_results', {})
+        speaker_tracking = layout_speaker_analysis.get('speaker_tracking', {})
         layout_recommendations = context.get('layout_optimization_recommendations', [])
 
         if not all([transcription, video_info, clips]):
-            self.log_error("Missing data for subtitle animation.")
+            self.log_error("Missing data for subtitle animation. Required: transcription, video_info, clips.")
             set_stage_status('subtitle_animation', 'failed', {'reason': 'Missing dependencies'})
             return context
 
@@ -39,27 +41,21 @@ class SubtitleAnimationAgent(Agent):
 
             animated_subtitle_paths = []
             for i, clip in enumerate(clips, 1):
-                # Extract start and end times from the first and last scene of the clip
-                if not clip.get('scenes') or not clip['scenes']: # Added check for empty list
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has no scenes or an empty scenes list. Skipping.")
-                    continue
-                
-                # Ensure the first and last scenes are not None before accessing
-                first_scene = clip['scenes'][0]
-                last_scene = clip['scenes'][-1]
+                # Clips from ContentDirectorAgent have 'start_time' and 'end_time' directly
+                start = clip.get('start_time')
+                end = clip.get('end_time')
 
-                if first_scene is None or last_scene is None:
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has None in its scenes list. Skipping.")
+                if start is None or end is None:
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping subtitle generation for this clip.")
                     continue
-
-                start = first_scene['start_time']
-                end = last_scene['end_time']
                 
                 clip_transcript = [seg for seg in transcription if start <= seg['start'] < end]
                 if not clip_transcript:
+                    self.log_warning(f"No transcript segments found for clip from {start:.2f}s to {end:.2f}s. Skipping subtitle generation for this clip.")
                     continue
 
-                layout_rec = next((item for item in layout_recommendations if item['clip_start'] == start), {'recommended_layout': 'default'})
+                # Find the layout recommendation for the current clip
+                layout_rec = next((item for item in layout_recommendations if item['clip_start'] == start and item['clip_end'] == end), {'recommended_layout': 'default'})
                 
                 ass_path = get_temp_path(f"animated_subtitles_clip_{i}.ass")
 

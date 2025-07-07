@@ -3,7 +3,6 @@ from core.state_manager import set_stage_status
 from llm import llm_interaction
 import numpy as np
 from pydantic import BaseModel, Field
-import json # Added json import
 
 class HookIdentificationAgent(Agent):
     def __init__(self, config, state_manager):
@@ -12,8 +11,9 @@ class HookIdentificationAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
-        engagement_results = context.get('engagement_analysis_results', [])
-        transcription = context.get('transcription', [])
+        # Updated paths to retrieve data from the hierarchical context
+        engagement_results = context.get('current_analysis', {}).get('multimodal_analysis_results', {}).get('engagement_metrics', [])
+        transcription = context.get('archived_data', {}).get('full_transcription', [])
         
         if not engagement_results or not transcription:
             self.log_error("Engagement or transcription data missing. Cannot identify hooks.")
@@ -25,9 +25,17 @@ class HookIdentificationAgent(Agent):
 
         try:
             # Identify top engagement peaks
-            scores = [s['engagement_score'] for s in engagement_results]
+            # Use 'score' key as per MultimodalAnalysisAgent's output
+            scores = [s['score'] for s in engagement_results]
+            
+            if not scores:
+                self.log_info("No engagement scores found to identify hooks.")
+                context['identified_hooks'] = []
+                set_stage_status('hook_identification_complete', 'complete', {'num_hooks': 0})
+                return context
+
             peak_threshold = np.mean(scores) + 1.5 * np.std(scores)
-            potential_hooks = [s for s in engagement_results if s['engagement_score'] > peak_threshold]
+            potential_hooks = [s for s in engagement_results if s['score'] > peak_threshold]
 
             hooks = []
             for hook in potential_hooks:
@@ -48,22 +56,22 @@ class HookIdentificationAgent(Agent):
                         reason: str = Field(description="Explanation for the assessment.")
 
                     # Updated system prompt to enforce JSON output
-                    system_prompt_for_hook_analysis = f"""
+                    system_prompt_for_hook_analysis = """
                     You are an expert in identifying narrative hooks and quotable moments from text.
                     You MUST respond with ONLY a valid JSON object that strictly adheres to the following schema:
 
-                    {{
+                    {
                         "is_hook": boolean,
                         "quotability_score": float (between 0 and 1),
                         "reason": string
-                    }}
+                    }
 
                     Example:
-                    {{
+                    {
                         "is_hook": true,
                         "quotability_score": 0.85,
                         "reason": "This phrase is highly impactful and sets up a clear conflict."
-                    }}
+                    }
 
                     Do NOT include any other text, explanations, or markdown fences (e.g., ```json).
                     """
@@ -84,7 +92,7 @@ class HookIdentificationAgent(Agent):
                             hooks.append({
                                 'timestamp': timestamp,
                                 'text': text,
-                                'engagement_score': hook['engagement_score'],
+                                'engagement_score': hook['score'], # Changed to 'score'
                                 'quotability_score': analysis_obj.quotability_score,
                                 'reason': analysis_obj.reason
                             })

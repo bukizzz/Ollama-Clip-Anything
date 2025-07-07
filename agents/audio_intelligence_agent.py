@@ -1,9 +1,16 @@
+from agents.base_agent import Agent
+from typing import Dict, Any
+from audio import audio_processing
+from core.temp_manager import get_temp_path
+from core.cache_manager import cache_manager
+from llm.llm_interaction import summarize_transcript_with_llm
+from core.state_manager import set_stage_status # Import the function
+
 import os
 import torch
-from transformers.pipelines import pipeline # Corrected import
-from agents.base_agent import Agent
-from core.state_manager import set_stage_status
+from transformers.pipelines import pipeline
 from core.gpu_manager import gpu_manager
+from core.resource_manager import resource_manager
 from pyannote.audio import Pipeline as PyannotePipeline
 import librosa
 import numpy as np
@@ -16,10 +23,12 @@ SENTIMENT_POSITIVE_THRESHOLD = 0.2
 SENTIMENT_NEGATIVE_THRESHOLD = -0.2
 DEFAULT_NUM_THEME_CLUSTERS = 5
 
-class AudioAnalysisAgent(Agent):
-    def __init__(self, config, state_manager):
-        super().__init__("AudioAnalysisAgent")
-        self.config = config
+class AudioIntelligenceAgent(Agent):
+    """Agent responsible for transcribing video audio, performing rhythm analysis, and advanced audio analysis."""
+
+    def __init__(self, agent_config, state_manager):
+        super().__init__("AudioIntelligenceAgent")
+        self.config = agent_config
         self.state_manager = state_manager
         self.sentiment_analyzer = None
         self.speaker_diarization_pipeline = None
@@ -51,11 +60,11 @@ class AudioAnalysisAgent(Agent):
                 return True
             except Exception as e:
                 self.log_error(f"{error_message}: {e}")
+                resource_manager.unload_all_models()
                 return False
-        return True # Model already loaded
+        return True
 
     def _load_models(self):
-        # Sentiment Analyzer
         self._load_model(
             "sentiment_analyzer",
             lambda: pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=0 if torch.cuda.is_available() else -1),
@@ -63,7 +72,6 @@ class AudioAnalysisAgent(Agent):
             error_message="Failed to load sentiment analysis model"
         )
 
-        # Speaker Diarization
         self._load_model(
             "speaker_diarization_pipeline",
             lambda token: PyannotePipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token),
@@ -72,7 +80,6 @@ class AudioAnalysisAgent(Agent):
             hf_token_key='huggingface_tokens.pyannote_audio'
         )
 
-        # Theme Model
         self._load_model(
             "theme_model",
             lambda: SentenceTransformer('all-MiniLM-L6-v2'),
@@ -84,11 +91,23 @@ class AudioAnalysisAgent(Agent):
         if self.speaker_diarization_pipeline:
             try:
                 diarization = self.speaker_diarization_pipeline(audio_path)
-                speakers = []
-                for turn, _, speaker in diarization.itertracks(yield_label=True):
-                    speakers.append({'speaker': speaker, 'start': turn.start, 'end': turn.end})
-                audio_analysis_results['speaker_diarization'] = speakers
-                self.log_info(f"Speaker diarization complete. Detected {len(set(s['speaker'] for s in speakers))} speakers.")
+                self.log_info(f"DEBUG: Type of diarization object: {type(diarization)}")
+                self.log_info(f"DEBUG: Has itertracks attribute: {hasattr(diarization, 'itertracks')}")
+
+                if diarization and hasattr(diarization, 'itertracks'):
+                    speakers = []
+                    # Ensure itertracks returns an iterable
+                    itertracks_result = diarization.itertracks(yield_label=True)
+                    if itertracks_result is None:
+                        self.log_warning("diarization.itertracks returned None. Skipping diarization.")
+                        return
+                    
+                    for turn, _, speaker in itertracks_result:
+                        speakers.append({'speaker': speaker, 'start': turn.start, 'end': turn.end})
+                    audio_analysis_results['speaker_diarization'] = speakers
+                    self.log_info(f"Speaker diarization complete. Detected {len(set(s['speaker'] for s in speakers))} speakers.")
+                else:
+                    self.log_warning("Speaker diarization pipeline returned no valid results or an unexpected object. Skipping diarization.")
             except Exception as e:
                 self.log_error(f"Failed to run speaker diarization model: {e}")
         else:
@@ -133,14 +152,10 @@ class AudioAnalysisAgent(Agent):
         rms = librosa.feature.rms(y=y)[0]
         pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
         
-        pitch = np.array([]) # Initialize pitch as an empty numpy array
+        pitch = np.array([])
 
-        # Check if magnitudes has data before attempting pitch calculation
         if magnitudes.size > 0 and magnitudes.shape[1] > 0:
-            # Optimized pitch calculation using numpy argmax
             max_magnitude_indices = np.argmax(magnitudes, axis=0)
-            # Use np.take_along_axis for potentially better Pylance inference
-            # The indices need to be broadcastable to the shape of pitches along axis 0
             pitch = np.take_along_axis(pitches, max_magnitude_indices[np.newaxis, :], axis=0).squeeze()
         else:
             self.log_warning("No valid magnitudes detected for pitch tracking. Skipping vocal emphasis calculation.")
@@ -149,7 +164,6 @@ class AudioAnalysisAgent(Agent):
             'rms_mean': float(np.mean(rms)),
             'rms_std': float(np.std(rms))
         }
-        # Ensure pitch > 0 to avoid division by zero or issues with silent parts
         valid_pitches = pitch[pitch > 0]
         if valid_pitches.size > 0:
             audio_analysis_results['vocal_emphasis'] = {
@@ -158,7 +172,7 @@ class AudioAnalysisAgent(Agent):
             }
         else:
             audio_analysis_results['vocal_emphasis'] = {
-                'pitch_mean': 0.0, # Or np.nan, depending on desired behavior for silent audio
+                'pitch_mean': 0.0,
                 'pitch_std': 0.0
             }
             self.log_warning("No valid pitches detected for vocal emphasis analysis.")
@@ -177,8 +191,7 @@ class AudioAnalysisAgent(Agent):
                 num_clusters = min(DEFAULT_NUM_THEME_CLUSTERS, len(sentences))
                 
                 if num_clusters > 0:
-                    # Added n_init='auto' for KMeans to suppress future warnings
-                    kmeans = KMeans(n_clusters=num_clusters, random_state=0, n_init='auto').fit(embeddings)
+                    kmeans = KMeans(n_clusters=num_clusters, random_state=0, n_init=10).fit(embeddings) # Changed n_init to 10
                     themes = {}
                     for i, label in enumerate(kmeans.labels_):
                         if label not in themes:
@@ -193,27 +206,57 @@ class AudioAnalysisAgent(Agent):
         else:
             self.log_warning("Theme identification model not loaded. Skipping theme analysis.")
 
-    def execute(self, context):
-        print("🎵 Starting audio analysis.")
-        audio_path = context.get('audio_path')
-        transcription = context.get('transcription')
-
-        if not audio_path or not os.path.exists(audio_path):
-            print("❌ Audio path not found in context.")
-            return context
+    def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        processed_video_path = context.get("processed_video_path")
         
-        if not transcription:
-            print("❌ Transcription not found in context.")
+        context.setdefault('archived_data', {})
+        context.setdefault('summaries', {})
+        context.setdefault('current_analysis', {})
+
+        transcription = context['archived_data'].get("full_transcription")
+
+        print("\n🎤 \u001b[94mStarting Audio Intelligence Analysis...\u001b[0m")
+        
+        if processed_video_path is None:
+            raise RuntimeError("Processed video path is missing from context. Cannot perform audio intelligence.")
+
+        cache_key = f"audio_intelligence_{os.path.basename(processed_video_path)}"
+        cached_results = cache_manager.get(cache_key, level="disk")
+
+        if cached_results:
+            print("⏩ Skipping audio intelligence. Loaded from cache.")
+            context.update(cached_results)
+            set_stage_status('audio_analysis_complete', 'complete', {'loaded_from_cache': True})
             return context
+
+        audio_path = get_temp_path("temp_audio_normalized.wav")
+        if not context.get("audio_path"):
+            audio_processing.extract_audio(processed_video_path, audio_path)
+            context["audio_path"] = audio_path
+
+        if transcription is None:
+            transcription = audio_processing.transcribe_video(processed_video_path)
+            if not transcription:
+                raise RuntimeError("Transcription failed. Video may have no audio.")
+            context["archived_data"]["full_transcription"] = transcription
+            
+            print("🧠 \u001b[94mSummarizing transcript with LLM...\u001b[0m")
+            transcript_summary = summarize_transcript_with_llm(transcription)
+            context["summaries"]["full_transcription_summary"] = transcript_summary.model_dump()
+            
+            if "transcription" in context:
+                del context["transcription"]
+        else:
+            print("⏩ Skipping transcription. Loaded from state.")
+            
+        print(f"✅ Transcription complete: {len(transcription)} segments found.")
 
         self.log_info(f"Starting advanced audio analysis for {audio_path}")
         set_stage_status('audio_analysis', 'running')
 
-        self._load_models() # Ensure models are loaded
+        self._load_models()
 
         try:
-            # Consider specifying sr=None if original sample rate is preferred, or a fixed sr if resampling is desired.
-            # For now, keeping default behavior.
             y, sr = librosa.load(audio_path)
             audio_analysis_results = {}
 
@@ -222,9 +265,17 @@ class AudioAnalysisAgent(Agent):
             self._analyze_speech_energy_vocal_emphasis(y, sr, audio_analysis_results)
             self._identify_audio_themes(transcription, audio_analysis_results)
 
-            context['audio_analysis_results'] = audio_analysis_results
+            context['current_analysis']['audio_analysis_results'] = audio_analysis_results
             self.log_info("Advanced audio analysis complete.")
-            set_stage_status('audio_analysis', 'complete', audio_analysis_results)
+            set_stage_status('audio_analysis_complete', 'complete', audio_analysis_results)
+            
+            cache_manager.set(cache_key, {
+                'audio_path': audio_path,
+                'archived_data': context.get('archived_data'),
+                'summaries': context.get('summaries'),
+                'current_analysis': context.get('current_analysis')
+            }, level="disk")
+
             return context
 
         except Exception as e:

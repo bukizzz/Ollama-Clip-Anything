@@ -2,7 +2,8 @@ from agents.base_agent import Agent
 from typing import Dict, Any
 
 from core.state_manager import set_stage_status
-from llm.image_analysis import describe_image, ImageAnalysisResult
+from core.cache_manager import cache_manager # Import cache_manager
+from llm.image_analysis import describe_images_batch
 from video.scene_detection import SceneDetector
 from video.frame_processor import FrameProcessor
 from pydantic import BaseModel, Field
@@ -26,11 +27,12 @@ class StoryboardingAgent(Agent):
         self.frame_processor = None 
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        video_path = context.get("processed_video_path")
-        video_info = context.get("video_info")
-        # qwen_results = context.get('qwen_vision_analysis_results', []) # No longer directly used in storyboard entry
+        # Ensure 'metadata' is a dictionary and then get video_info
+        context.setdefault('metadata', {})
+        video_info = context['metadata'].get("video_info")
+        processed_video_path = context.get("processed_video_path")
 
-        if not video_path or not video_info:
+        if not processed_video_path or not video_info:
             self.log_error("Video path or info missing. Skipping storyboarding.")
             set_stage_status('storyboarding', 'skipped', {'reason': 'Missing video path or info'})
             return context
@@ -54,13 +56,24 @@ class StoryboardingAgent(Agent):
         print("📝 Starting enhanced storyboarding...")
         set_stage_status('storyboarding', 'running')
 
-        extracted_frames_info = context.get("extracted_frames_info")
+        cache_key = f"storyboard_{os.path.basename(processed_video_path)}"
+        cached_storyboard = cache_manager.get(cache_key, level="disk")
+
+        if cached_storyboard:
+            print("⏩ Skipping storyboarding. Loaded from cache.")
+            context["storyboard_data"] = cached_storyboard
+            set_stage_status('storyboarding_complete', 'complete', {'loaded_from_cache': True})
+            return context
+
+        # Ensure 'archived_data' is a dictionary
+        context.setdefault('archived_data', {})
+        extracted_frames_info = context['archived_data'].get("raw_frames") # Get from archived_data
         if not extracted_frames_info:
             self.log_error("Extracted frames info missing. Skipping storyboarding.")
             set_stage_status('storyboarding', 'skipped', {'reason': 'Missing extracted_frames_info'})
             return context
 
-        scene_boundaries = self.scene_detector.detect_scene_changes(video_path)
+        scene_boundaries = self.scene_detector.detect_scene_changes(processed_video_path)
         print(f"DEBUG: Detected scene boundaries: {scene_boundaries}")
 
         # Create a set of all relevant timestamps to analyze: start, end, and all scene boundaries
@@ -96,7 +109,7 @@ class StoryboardingAgent(Agent):
             if not found_existing:
                 # If no sufficiently close frame exists, extract a new one
                 self.log_info(f"Extracting new frame at scene boundary: {ts:.2f}s")
-                new_frame_path = self.frame_processor.extract_frame_at_timestamp(video_path, ts)
+                new_frame_path = self.frame_processor.extract_frame_at_timestamp(processed_video_path, ts)
                 if new_frame_path and os.path.exists(new_frame_path): # Ensure file was actually created
                     frames_for_storyboard_analysis.append({
                         'frame_path': new_frame_path,
@@ -118,35 +131,37 @@ class StoryboardingAgent(Agent):
         print(f"DEBUG: Final list of unique frames selected for LLM analysis (paths): {[f['frame_path'] for f in final_frames_to_analyze]}")
         print(f"DEBUG: Final list of unique frames selected for LLM analysis (timestamps): {[f['timestamp_sec'] for f in final_frames_to_analyze]}")
 
-        storyboard = []
-        for frame_info in final_frames_to_analyze: # Use the new list
+        # Prepare frames for batch LLM analysis
+        frames_for_batch_analysis = []
+        for frame_info in final_frames_to_analyze:
             timestamp = frame_info['timestamp_sec']
             temp_frame_path = frame_info['frame_path']
-
-            # Multimodal LLM analysis
-            print(f"🧠 Performing LLM analysis for frame at {timestamp:.2f}s. Frame path: {temp_frame_path}...\n")
             # Refined prompt for conciseness: Emphasize very short descriptions
             prompt = f"Describe the image at {timestamp:.2f}s in 5-10 words. Focus on key visual elements, people, and their actions. Identify the content type (e.g., discussion, demo, presentation) and hook potential (1-10)."
-            
-            analysis_result: ImageAnalysisResult # Declare type hint
-            try:
-                analysis_result = describe_image(temp_frame_path, prompt)
-                print(f"✨ Extracted structured analysis for frame at {timestamp:.2f}s: {analysis_result.model_dump_json(indent=2)}\n")
-            except Exception as e:
-                self.log_error(f"LLM analysis failed for frame at {timestamp:.2f}s: {e}. Appending empty analysis and continuing.")
-                analysis_result = ImageAnalysisResult(scene_description="N/A", content_type="unknown", hook_potential=0) # Fallback
+            frames_for_batch_analysis.append((temp_frame_path, prompt))
 
+        print(f"🧠 Performing batch LLM analysis for {len(frames_for_batch_analysis)} frames...")
+        batch_analysis_results = describe_images_batch(frames_for_batch_analysis)
+
+        storyboard = []
+        for i, analysis_result in enumerate(batch_analysis_results):
+            frame_info = final_frames_to_analyze[i]
+            timestamp = frame_info['timestamp_sec']
+            
             storyboard.append({
                 "timestamp": timestamp,
                 "description": analysis_result.scene_description,
                 "content_type": analysis_result.content_type,
                 "hook_potential": analysis_result.hook_potential,
-                # Removed qwen_data to reduce token count
             })
 
         # Sort the storyboard by timestamp
         storyboard = sorted(storyboard, key=lambda x: x['timestamp'])
-        context["storyboard_data"] = storyboard
+        context['storyboard_data'] = storyboard
         print(f"✅ Enhanced storyboarding complete. Generated {len(storyboard)} scenes.")
         set_stage_status('storyboarding_complete', 'complete', {'num_scenes': len(storyboard)})
+        
+        # Cache the results before returning
+        cache_manager.set(cache_key, storyboard, level="disk")
+
         return context

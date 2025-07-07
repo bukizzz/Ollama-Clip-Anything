@@ -57,3 +57,24 @@ def describe_image(image_path: str, prompt: str) -> ImageAnalysisResult:
             content_type="unknown",
             hook_potential=0
         )
+
+def describe_images_batch(image_paths_with_prompts: list[tuple[str, str]]) -> list[ImageAnalysisResult]:
+    """
+    Performs batch LLM inference for multiple images.
+    NOTE: This is a simulated batch for now. For true batching, the underlying LLM API
+    (robust_llm_json_extraction) would need to support multiple image inputs.
+    """
+    results = []
+    for image_path, prompt in image_paths_with_prompts:
+        print(f"Querying multi-modal LLM for batch item with text: {prompt} and image data.")
+        try:
+            analysis_result = describe_image(image_path, prompt)
+            results.append(analysis_result)
+        except Exception as e:
+            print(f"❌ Error in batch LLM analysis for image {image_path}: {e}. Appending empty analysis.")
+            results.append(ImageAnalysisResult(
+                scene_description="Could not generate image description due to an error.",
+                content_type="unknown",
+                hook_potential=0
+            ))
+    return results

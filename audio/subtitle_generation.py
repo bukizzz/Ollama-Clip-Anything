@@ -71,3 +71,14 @@ def create_ass_file(
 
                 f.write(f"Dialogue: 0,{format_time(start)},{format_time(end)},{style},,0,0,0,,{tags}{text}\n")
                 last_word_end = end
+
+def generate_subtitles_efficiently(transcription: List[Dict], output_dir: str, clip_name: str, video_height: int) -> str:
+    """
+    Generates ASS subtitle file for a given clip, optimizing for efficiency.
+    """
+    import os
+
+
+    output_path = os.path.join(output_dir, f"{clip_name}_subtitles.ass")
+    create_ass_file(transcription, output_path, video_height=video_height)
+    return output_path

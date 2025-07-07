@@ -8,10 +8,11 @@ class DynamicEditingAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
-        clips = context.get('clips', [])
-        audio_rhythm = context.get('audio_rhythm_data', {})
-        engagement = context.get('engagement_analysis_results', [])
-        llm_director_cuts = context.get('llm_cut_decisions', [])
+        # Updated paths to retrieve data from the hierarchical context
+        clips = context.get('current_analysis', {}).get('clips', [])
+        audio_rhythm = context.get('current_analysis', {}).get('audio_analysis_results', {}).get('audio_rhythm', {})
+        engagement = context.get('current_analysis', {}).get('multimodal_analysis_results', {}).get('engagement_metrics', [])
+        llm_director_cuts = context.get('current_analysis', {}).get('cut_decisions', []) # From ContentDirectorAgent
 
         if not clips:
             self.log_error("No clips for dynamic editing.")
@@ -24,13 +25,13 @@ class DynamicEditingAgent(Agent):
         try:
             editing_decisions = []
             for clip in clips:
-                # Extract start and end times from the first and last scene of the clip
-                if not clip.get('scenes'):
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has no scenes. Skipping.")
+                # Clips from ContentDirectorAgent have 'start_time' and 'end_time'
+                start = clip.get('start_time')
+                end = clip.get('end_time')
+
+                if start is None or end is None:
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping.")
                     continue
-                
-                start = clip['scenes'][0]['start_time']
-                end = clip['scenes'][-1]['end_time']
                 
                 # Optimal cut points from LLM Director
                 for cut in llm_director_cuts:
@@ -39,7 +40,8 @@ class DynamicEditingAgent(Agent):
 
                 # Dynamic effects from engagement and rhythm
                 for eng in engagement:
-                    if start <= eng['timestamp'] <= end and eng['engagement_score'] > 0.75:
+                    # Use 'score' key for engagement results as per MultimodalAnalysisAgent's output
+                    if start <= eng['timestamp'] <= end and eng['score'] > 0.75:
                         editing_decisions.append({'time': eng['timestamp'], 'type': 'zoom_in', 'intensity': 'medium'})
                 
                 if 'beat_times' in audio_rhythm:

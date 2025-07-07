@@ -11,7 +11,7 @@ from core.config import config
 from typing import Optional # Import Optional
 
 
-def get_video_input(video_path: str, youtube_url: Optional[str] = None, youtube_quality: Optional[int] = None) -> str:
+def get_video_input(video_path: Optional[str] = None, youtube_url: Optional[str] = None, youtube_quality: Optional[int] = None) -> str:
     """Handles video input based on provided arguments."""
     if video_path:
         if not os.path.isfile(video_path):

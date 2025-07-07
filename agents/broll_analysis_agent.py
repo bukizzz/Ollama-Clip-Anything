@@ -9,6 +9,8 @@ from llm import llm_interaction
 from core.state_manager import set_stage_status
 from llm.image_analysis import describe_image, ImageAnalysisResult # Import ImageAnalysisResult
 from llm.llm_interaction import SuggestionsResponse # Import the new model
+from core.cache_manager import cache_manager # Import cache_manager
+from core.resource_manager import resource_manager # Import resource_manager
 
 class BrollAnalysisAgent(Agent):
     def __init__(self, config, state_manager):
@@ -24,16 +26,33 @@ class BrollAnalysisAgent(Agent):
         self.supported_formats = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp'}
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        clips = context.get('clips', [])
-        audio_rhythm = context.get('audio_rhythm_data', {})
+        # Retrieve clips from the correct location in the hierarchical context
+        clips = context.get('current_analysis', {}).get('clips', [])
+        audio_rhythm = context.get('audio_rhythm_data', {}) # This might also need to be checked for its correct location
 
         if not clips:
             print("🎬 No clips selected, skipping B-roll analysis.")
+            context['b_roll_suggestions'] = []
             set_stage_status('broll_analysis', 'skipped', {'reason': 'No clips'})
             return context
 
         print("🎬 Starting B-roll analysis...")
         set_stage_status('broll_analysis', 'running')
+
+        processed_video_path = context.get('processed_video_path')
+        if processed_video_path is None:
+            self.log_error("Processed video path is missing from context. Cannot generate B-roll cache key.")
+            set_stage_status('broll_analysis', 'failed', {'reason': 'Missing processed_video_path'})
+            return context
+
+        cache_key = f"broll_analysis_{os.path.basename(processed_video_path)}"
+        cached_results = cache_manager.get(cache_key, level="disk")
+
+        if cached_results:
+            print("⏩ Skipping B-roll analysis. Loaded from cache.")
+            context.update(cached_results)
+            set_stage_status('broll_analysis', 'complete', {'loaded_from_cache': True})
+            return context
 
         # Discover and catalog assets
         b_roll_assets = self._discover_and_catalog_assets()
@@ -56,6 +75,12 @@ class BrollAnalysisAgent(Agent):
         context['b_roll_suggestions'] = suggestions
         print(f"✅ B-roll analysis complete - {len(suggestions)} suggestions generated")
         set_stage_status('broll_analysis', 'complete', {'num_suggestions': len(suggestions)})
+        
+        # Cache the results before returning
+        cache_manager.set(cache_key, {
+            'b_roll_suggestions': suggestions
+        }, level="disk")
+
         return context
 
     def _discover_and_catalog_assets(self) -> List[Dict[str, Any]]:
@@ -269,6 +294,7 @@ Keep it concise and useful for video editing context."""
             
         except Exception as e:
             print(f"⚠️ Error generating description: {e}")
+            resource_manager.unload_all_models() # Unload models on error
             return f"Image file: {os.path.basename(file_path)} (Error: {e})" # Include error for better debugging
 
     def _extract_tags_from_description(self, description: str) -> List[str]:

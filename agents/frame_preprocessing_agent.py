@@ -1,8 +1,7 @@
 import os
-import cv2
 from agents.base_agent import Agent
 from core.state_manager import set_stage_status
-from core.temp_manager import get_temp_path
+from core.cache_manager import cache_manager # Import cache_manager
 
 class FramePreprocessingAgent(Agent):
     def __init__(self, agent_config, state_manager):
@@ -24,59 +23,39 @@ class FramePreprocessingAgent(Agent):
         set_stage_status('frame_preprocessing', 'running')
 
         try:
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                raise IOError(f"Could not open video file: {video_path}")
-
-            fps = cap.get(cv2.CAP_PROP_FPS)
-
-            # Get frame extraction rate from context or config
-            frame_extraction_rate = context.get("frame_extraction_rate", self.qwen_vision_config.get('frame_extraction_rate_fps', 1))
-            print(f"ℹ️ Using frame extraction rate: {frame_extraction_rate} FPS")
-
-            if frame_extraction_rate > fps:
-                self.log_warning(f"Requested FPS ({frame_extraction_rate:.2f}) is higher than video FPS ({fps:.2f}). Using video FPS.")
-                frame_extraction_rate = fps
+            from video.frame_processor import FrameProcessor
             
-            if frame_extraction_rate <= 0:
-                self.log_error("Frame extraction rate must be a positive number.")
-                raise ValueError("Frame extraction rate must be a positive number.")
+            # Get target frame count from config or use a default
+            target_frame_count = self.config.get('compression', {}).get('target_frame_count', 100)
+            min_hash_diff = self.config.get('compression', {}).get('min_hash_diff', 10)
 
-            frame_interval = int(fps / frame_extraction_rate)
-            frame_count = 0
-            extracted_frames_info = []
+            cache_key = f"frames_{os.path.basename(video_path)}_{target_frame_count}_{min_hash_diff}"
+            cached_frames = cache_manager.get(cache_key, level="disk")
 
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            if cached_frames:
+                print("⏩ Skipping frame preprocessing. Loaded from cache.")
+                extracted_frames_info = cached_frames
+            else:
+                # Initialize FrameProcessor (dimensions are not critical for smart frame selection)
+                frame_processor = FrameProcessor()
 
-                if frame_count % frame_interval == 0:
-                    timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
-                    timestamp_sec = timestamp_ms / 1000.0
+                print(f"ℹ️ Selecting smart frames with target_count={target_frame_count}, min_hash_diff={min_hash_diff}...")
+                extracted_frames_info = frame_processor.select_smart_frames(
+                    video_path=video_path,
+                    target_count=target_frame_count,
+                    min_hash_diff=min_hash_diff
+                )
+                cache_manager.set(cache_key, extracted_frames_info, level="disk")
+            
+            print(f"✅ Selected {len(extracted_frames_info)} smart frames.")
+            
+            # Ensure 'archived_data' is a dictionary
+            context.setdefault('archived_data', {})
+            # Store raw frames info in archived_data and remove from current context
+            context['archived_data']['raw_frames'] = extracted_frames_info
+            if 'extracted_frames_info' in context:
+                del context['extracted_frames_info']
 
-                    # Resize frame if resolution settings are specified
-                    resolution = self.qwen_vision_config.get('resolution_settings')
-                    if resolution:
-                        if resolution == "720p":
-                            frame = cv2.resize(frame, (1280, 720))
-                        elif resolution == "1080p":
-                            frame = cv2.resize(frame, (1920, 1080))
-                        # Add more resolutions as needed
-
-                    frame_filename = get_temp_path(f"frame_{frame_count:07d}.jpg")
-                    cv2.imwrite(frame_filename, frame)
-                    extracted_frames_info.append({
-                        'frame_path': frame_filename,
-                        'timestamp_sec': timestamp_sec,
-                        'frame_number': frame_count
-                    })
-
-                frame_count += 1
-
-            cap.release()
-            print(f"✅ Extracted {len(extracted_frames_info)} frames.")
-            context['extracted_frames_info'] = extracted_frames_info
             set_stage_status('frame_feature_extraction_complete', 'complete', {'num_frames': len(extracted_frames_info)})
             return context
 

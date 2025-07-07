@@ -5,41 +5,34 @@ import argparse
 import logging
 from tqdm import tqdm
 
-from core.config import config # Re-importing to ensure recognition
+from core.config import config
 from core.utils import terminate_existing_processes
 from core import temp_manager
-from core import state_manager
+from core.state_manager import StateManager
 from llm import llm_interaction
 from core import utils
+from core.monitoring import monitor
 
 # Import agents
 from core.agent_manager import AgentManager
 from agents.video_input_agent import VideoInputAgent
 from agents.storyboarding_agent import StoryboardingAgent
-from agents.content_alignment_agent import ContentAlignmentAgent
-from agents.audio_transcription_agent import AudioTranscriptionAgent
+from agents.content_director_agent import ContentDirectorAgent
+from agents.audio_intelligence_agent import AudioIntelligenceAgent
 from agents.llm_selection_agent import LLMSelectionAgent
-from agents.video_analysis_agent import VideoAnalysisAgent
-from agents.video_editing_agent import VideoEditingAgent
-from agents.results_summary_agent import ResultsSummaryAgent
 from agents.broll_analysis_agent import BrollAnalysisAgent
-from agents.audio_analysis_agent import AudioAnalysisAgent
-from agents.intro_narration_agent import IntroNarrationAgent
 from agents.frame_preprocessing_agent import FramePreprocessingAgent
-from agents.qwen_vision_agent import QwenVisionAgent
-from agents.engagement_analysis_agent import EngagementAnalysisAgent
-from agents.layout_detection_agent import LayoutDetectionAgent
-from agents.speaker_tracking_agent import SpeakerTrackingAgent
+from agents.layout_speaker_agent import LayoutSpeakerAgent
 from agents.hook_identification_agent import HookIdentificationAgent
-from agents.llm_video_director_agent import LLMVideoDirectorAgent
 from agents.viral_potential_agent import ViralPotentialAgent
 from agents.dynamic_editing_agent import DynamicEditingAgent
 from agents.music_sync_agent import MusicSyncAgent
 from agents.layout_optimization_agent import LayoutOptimizationAgent
 from agents.subtitle_animation_agent import SubtitleAnimationAgent
-from agents.content_enhancement_agent import ContentEnhancementAgent
-from agents.quality_assurance_agent import QualityAssuranceAgent
-from core.prompt_parser import parse_user_prompt # Moved from inside main function
+from agents.video_production_agent import VideoProductionAgent
+from agents.multimodal_analysis_agent import MultimodalAnalysisAgent
+from agents.results_summary_agent import ResultsSummaryAgent
+from core.prompt_parser import parse_user_prompt
 
 
 # Configure logging
@@ -51,18 +44,10 @@ if ffmpeg_path:
     os.environ["FFMPEG_BINARY"] = ffmpeg_path
     os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
 
-# TODO: Consider creating a dedicated 'tools/' directory for managing external models and libraries.
-
-# main.py
-"""
-Main entry point for the 60-Second Clips Generator application.
-This script orchestrates the entire video processing pipeline.
-"""
-
-def _get_frame_analysis_rate(state: dict):
+def _get_frame_analysis_rate(state: dict, state_manager_instance: StateManager):
     """Interactively prompts the user for the frame analysis rate and updates the state."""
     options = {
-        0: 1.0,  # Default
+        0: 1.0,
         1: 1.0,
         2: 2.0,
         3: 3.0,
@@ -100,15 +85,15 @@ def _get_frame_analysis_rate(state: dict):
                 continue
             
             state["frame_analysis_rate"] = seconds_per_frame
-            state_manager.update_state_file(state) # Save the choice immediately
+            state_manager_instance.update_state_file(state)
             return
         except ValueError:
             logging.warning("Invalid input. Please enter a valid number.")
         except Exception as e:
             logging.error(f"An error occurred during frame analysis rate selection: {e}")
-            state["frame_analysis_rate"] = options[0] # Fallback to default
-            state_manager.update_state_file(state)
-            return # Exit on error, state updated with default
+            state["frame_analysis_rate"] = options[0]
+            state_manager_instance.update_state_file(state)
+            return
 
 def _get_default_state(args: dict) -> dict:
     """Returns the default state dictionary."""
@@ -124,7 +109,9 @@ def _get_default_state(args: dict) -> dict:
         "transcription": None,
         "clips": None,
         "user_prompt": args.get("user_prompt"),
-        "args": args
+        "args": args,
+        "pipeline_stages": {},
+        "metadata": {}
     }
 
 def _log_troubleshooting_tips():
@@ -143,29 +130,33 @@ def main(args: dict):
     Args:
         args (dict): A dictionary of arguments, typically from argparse or typer.
     """
-    context = None  # Initialize context to None
-    try:
-        terminate_existing_processes() # Terminate any other running instances
-        # --- Setup ---
-        logging.info("🎬 === 60-Second Clips Generator ===\n")
+    context = None
+    
+    state_manager_instance = StateManager()
+    # monitor is already a global instance imported from core.monitoring
 
+    monitor.start_stage("overall_pipeline")
+    try:
+        terminate_existing_processes()
+
+        logging.info("🎬 === 60-Second Clips Generator ===\n")
         logging.info("🔍 Performing system checks...\n")
         utils.system_checks()
 
         logging.info("🧹 Initializing LLM and cleaning up VRAM...\n")
-        llm_interaction.cleanup() # Initial VRAM cleanup on app start
+        llm_interaction.cleanup()
         logging.info("✅ LLM initialization and VRAM cleanup complete.\n")
 
         # --- Resume Mechanism ---
-        state = state_manager.load_state_file()
+        state = state_manager_instance._load_state_file()
         
         if args.get("nocache"):
             logging.warning("🗑️ --nocache flag detected. Deleting previous state and temporary files...\n")
-            state_manager.delete_state_file()
+            state_manager_instance.delete_state_file()
             temp_manager.cleanup_temp_dir()
-            state = None # Force a fresh start
+            state = None
         
-        if state: # If state exists after nocache check
+        if state:
             if args.get("retry"):
                 logging.info("🔄 --retry flag detected. Attempting to resume previous session...\n")
             else:
@@ -174,81 +165,70 @@ def main(args: dict):
                 resume_choice = input("❓ Previous session detected. Resume? [y/n]: ").lower()
                 if resume_choice != 'y':
                     logging.warning("🗑️ User declined resume. Deleting previous state and temporary files...\n")
-                    state_manager.delete_state_file()
+                    state_manager_instance.delete_state_file()
                     temp_manager.cleanup_temp_dir()
-                    state = None # User declined, force fresh start
+                    state = None
                 else:
                     logging.info("🔄 Resuming previous session...\n")
         
-        if not state: # If state is still None (either no previous state, nocache, or user declined)
+        if not state:
             state = _get_default_state(args)
-            state_manager.create_state_file(state)
+            state_manager_instance._create_state_file()
+            state_manager_instance.update_state_file(state)
         
         # --- Frame Analysis Rate Configuration ---
         if "frame_analysis_rate" not in state:
-            _get_frame_analysis_rate(state)
+            _get_frame_analysis_rate(state, state_manager_instance)
         
-        # Convert seconds per frame to FPS for agents
         if state.get("frame_analysis_rate") is not None:
             state["frame_extraction_rate"] = 1.0 / state["frame_analysis_rate"]
         else:
-            state["frame_extraction_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1) # Fallback to config default
+            state["frame_extraction_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1)
 
-        # Parse user prompt if provided
         user_prompt_arg = args.get("user_prompt")
         if user_prompt_arg:
             parsed_prompt = parse_user_prompt(user_prompt_arg)
             state["parsed_user_prompt"] = parsed_prompt
-            state_manager.update_state_file(state) # Persist parsed prompt immediately
+            state_manager_instance.update_state_file(state)
         
-        # Initialize MultiAgent with the pipeline
         pipeline_agents = [
-            VideoInputAgent(state_manager),
-            FramePreprocessingAgent(config, state_manager),
-            StoryboardingAgent(config, state_manager),
-            AudioTranscriptionAgent(state_manager),
-            AudioAnalysisAgent(config, state_manager),
-            BrollAnalysisAgent(config, state_manager),
-            LLMSelectionAgent(config, state_manager),
-            QwenVisionAgent(config, state_manager),
-            VideoAnalysisAgent(config, state_manager),
-            EngagementAnalysisAgent(config, state_manager),
-            LayoutDetectionAgent(config, state_manager),
-            SpeakerTrackingAgent(config, state_manager),
-            HookIdentificationAgent(config, state_manager),
-            ContentAlignmentAgent(config, state_manager), # Moved before LLMVideoDirectorAgent
-            LLMVideoDirectorAgent(config, state_manager), 
-            ViralPotentialAgent(config, state_manager),
-            DynamicEditingAgent(config, state_manager),
-            MusicSyncAgent(config, state_manager),
-            LayoutOptimizationAgent(config, state_manager),
-            SubtitleAnimationAgent(config, state_manager),
-            ContentEnhancementAgent(config, state_manager),
-            VideoEditingAgent(config, state_manager),
-            QualityAssuranceAgent(config, state_manager),
+            VideoInputAgent(config, state_manager_instance),
+            FramePreprocessingAgent(config, state_manager_instance),
+            StoryboardingAgent(config, state_manager_instance),
+            AudioIntelligenceAgent(config, state_manager_instance),
+            BrollAnalysisAgent(config, state_manager_instance),
+            LLMSelectionAgent(config, state_manager_instance),
+            MultimodalAnalysisAgent(config, state_manager_instance),
+            LayoutSpeakerAgent(config, state_manager_instance),
+            HookIdentificationAgent(config, state_manager_instance),
+            ContentDirectorAgent(config, state_manager_instance),
+            ViralPotentialAgent(config, state_manager_instance),
+            DynamicEditingAgent(config, state_manager_instance),
+            MusicSyncAgent(config, state_manager_instance),
+            LayoutOptimizationAgent(config, state_manager_instance),
+            SubtitleAnimationAgent(config, state_manager_instance),
+            VideoProductionAgent(config, state_manager_instance),
             ResultsSummaryAgent()
         ]
 
-        # Initialize AgentManager with the full pipeline
-        agent_manager = AgentManager(pipeline_agents)
+        agent_manager = AgentManager(config._config_data, state_manager_instance, monitor) # Pass config._config_data
         with tqdm(total=len(pipeline_agents), desc="Processing Pipeline") as pbar:
-            context = agent_manager.run(state, pbar)
+            context = agent_manager.run(pipeline_agents, state)
 
-        # Debugging: Check storyboard_data after StoryboardingAgent
         if 'storyboard_data' in context:
-            logging.debug(f"DEBUG: Storyboard Data: {context['storyboard_data'][:2]}") # Print first 2 elements
+            logging.debug(f"DEBUG: Storyboard Data: {context['storyboard_data'][:2]}")
         else:
             logging.debug("DEBUG: Storyboard Data not found in context.")
 
-        # Update state after pipeline run
-        state_manager.update_state_file(context)
-        llm_interaction.cleanup() # Clean up LLM models on successful completion
-        temp_manager.cleanup_temp_dir() # Clean up temporary directory on successful completion
+        state_manager_instance.update_state_file(context)
+        llm_interaction.cleanup()
+        temp_manager.cleanup_temp_dir()
+        monitor.finalize_metrics()
 
     except KeyboardInterrupt:
         current_stage = context.get("current_stage", "unknown") if context else "unknown"
         logging.info("\n\n❌ Process interrupted by user. Cleaning up...\n")
-        state_manager.update_state_file({
+        state_manager_instance.update_state_file({
             "failure_point": f"\nKeyboardInterrupt at stage: {current_stage}",
             "error_log": "\nProcess interrupted by user."
         })
@@ -257,19 +237,16 @@ def main(args: dict):
         error_message = f"\nA fatal error occurred at stage '{current_stage}': {e}"
         logging.error(f"\n\n❌ {error_message}\n")
         traceback.print_exc()
-        state_manager.update_state_file({
+        state_manager_instance.update_state_file({
             "failure_point": current_stage,
             "error_log": error_message
         })
-        _log_troubleshooting_tips() # Call the new helper function
+        _log_troubleshooting_tips()
     finally:
-        # Ensure context is a dictionary, even if it's None
-        state_manager.handle_pipeline_completion(context if context is not None else {})
+        pass
 
 
 if __name__ == "__main__":
-    # This block will only be executed when main.py is run directly
-    # For CLI usage, cli.py will call main with arguments
     parser = argparse.ArgumentParser(description="60-Second Clips Generator")
     parser.add_argument("--video_path", type=str, help="Path to a local MP4 video file.")
     parser.add_argument("--youtube_url", type=str, help="URL of a YouTube video to download.")

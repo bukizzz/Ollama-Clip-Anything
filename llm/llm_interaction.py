@@ -17,13 +17,54 @@ from typing import Any, Dict, List, Optional, Type, Union, cast
 
 
 from core.config import config
-from core.gpu_manager import gpu_manager
+from core.resource_manager import resource_manager # Import resource_manager
+from core.monitoring import monitor # Import monitor
 
 from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI # Added for Gemini
 from pydantic import BaseModel, Field, RootModel, ValidationError, field_validator, model_validator
 
 from google.api_core.exceptions import ResourceExhausted # Import the specific exception
+
+# Initialize loggers at the module level
+llm_logger = logging.getLogger('llm')
+error_logger = logging.getLogger('errors')
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold: int = 3, recovery_timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failures = 0
+        self.last_failure_time = 0
+        self.state = "CLOSED" # CLOSED, OPEN, HALF_OPEN
+
+    def record_success(self):
+        self.failures = 0
+        self.state = "CLOSED"
+
+    def record_failure(self):
+        self.failures += 1
+        self.last_failure_time = time.time()
+        if self.failures >= self.failure_threshold:
+            self.state = "OPEN"
+
+    def allow_request(self) -> bool:
+        if self.state == "CLOSED":
+            return True
+        elif self.state == "OPEN":
+            if (time.time() - self.last_failure_time) > self.recovery_timeout:
+                self.state = "HALF_OPEN"
+                return True # Allow one request to test recovery
+            return False
+        elif self.state == "HALF_OPEN":
+            return True # Allow the single test request
+        return False
+
+    def __repr__(self):
+        return f"CircuitBreaker(state='{self.state}', failures={self.failures}, last_failure_time={self.last_failure_time})"
+
+# Global circuit breaker instance
+llm_circuit_breaker = CircuitBreaker()
 
 # Disable HTTPX logging for cleaner output
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -101,8 +142,16 @@ class Clips(RootModel[List[Clip]]):
         raise TypeError("Input must be a dict or list of dicts representing Clip(s)")
 
 # New Pydantic model for raw text suggestions
+class Recommendation(BaseModel):
+    recommendation: str = Field(description="An actionable recommendation to enhance virality.")
+
 class SuggestionsResponse(BaseModel):
     suggestions_text: str = Field(description="Raw text containing B-roll suggestions.")
+
+class TranscriptSummary(BaseModel):
+    summary: str = Field(description="A concise, sentence-level summary of the entire transcript.")
+    key_phrases: List[str] = Field(description="A list of important keywords and phrases from the transcript.")
+    main_topics: List[str] = Field(description="A list of the main topics discussed in the transcript.")
 
 # Define common hallucinated words/units to remove from numerical values
 HALLYUCINATED_UNITS = r'\b(?:seconds?|s|minutes?|min|m|milliseconds?|ms|hours?|h)\b'
@@ -264,30 +313,14 @@ def cleanup():
     """
     Attempts to clear GPU memory and provides guidance for Ollama model unloading.
     """
-    llm_logger = logging.getLogger('llm')
-    error_logger = logging.getLogger('errors')
-
-    llm_logger.info("Attempting to clear GPU memory...")
-    # Clear PyTorch CUDA cache and run garbage collector
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    gc.collect()
-
-    # Unload all currently loaded Ollama models
+    # Use the module-level loggers
+    llm_logger.info("Attempting to clear GPU memory and unload models via resource manager...")
     try:
-        # Get current active models from config
-        current_active_llm_model = config.get('llm.current_active_llm_model')
-        if current_active_llm_model and current_active_llm_model.startswith("ollama"):
-            gpu_manager.unload_ollama_model(current_active_llm_model)
-
-        current_active_image_model = config.get('llm.current_active_image_model')
-        if current_active_image_model and current_active_image_model.startswith("ollama"):
-            gpu_manager.unload_ollama_model(current_active_image_model)
-
+        resource_manager.unload_all_models()
     except Exception as e:
-        error_logger.warning(f"Could not unload Ollama models: {e}", exc_info=True)
+        error_logger.warning(f"Could not unload models via resource manager: {e}", exc_info=True)
 
-    llm_logger.info("Ollama Models cleaned up successfully")
+    llm_logger.info("Models cleaned up successfully.")
     # Ensure GPU memory is cleared after Ollama models are signaled to unload
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -312,8 +345,7 @@ def _initialize_daily_usage():
     current_date = datetime.now().strftime("%Y-%m-%d")
     log_dir = config.get('log_dir', 'logs')
     usage_log_file = os.path.join(log_dir, 'usage.logs')
-    daily_summary_log_file = os.path.join(log_dir, 'daily_usage.log') # New daily summary log
-    llm_logger = logging.getLogger('llm')
+    daily_summary_log_file = os.path.join(log_dir, 'daily_usage.log')
 
     # Load existing usage data if available and not already loaded for the current session
     if not _last_reset_date and os.path.exists(usage_log_file):
@@ -363,8 +395,7 @@ def _log_daily_usage(reset: bool = False):
     os.makedirs(log_dir, exist_ok=True)
     usage_log_file = os.path.join(log_dir, 'usage.logs')
     
-    llm_logger = logging.getLogger('llm')
-
+    # Use the module-level llm_logger
     if _daily_usage_data:
         try:
             # Combine _daily_usage_data with last_reset_date for logging
@@ -389,7 +420,6 @@ def _write_daily_summary_log(date: str, usage_data: Dict[str, Dict[str, Any]]):
     """
     log_dir = config.get('log_dir', 'logs')
     daily_summary_log_file = os.path.join(log_dir, 'daily_usage.log')
-    llm_logger = logging.getLogger('llm')
 
     try:
         with open(daily_summary_log_file, 'a') as f:
@@ -416,10 +446,14 @@ def _write_daily_summary_log(date: str, usage_data: Dict[str, Dict[str, Any]]):
 
 def llm_pass(model_name: str, provider: str, requests_per_minute: float, requests_per_day: float, tokens_per_minute: float, messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
     """Send messages to LLM model and return raw response content."""
-    llm_logger = logging.getLogger('llm')
-    error_logger = logging.getLogger('errors')
+    # Use the module-level loggers
     
     _initialize_daily_usage() # Ensure daily counters are up-to-date
+
+    # Check circuit breaker state
+    if not llm_circuit_breaker.allow_request():
+        llm_logger.warning(f"Circuit breaker is OPEN for {model_name}. Denying request.")
+        raise RuntimeError(f"Circuit breaker is OPEN for model: {model_name}")
 
     messages_to_send = [msg.copy() for msg in messages] 
 
@@ -551,6 +585,8 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
             _daily_usage_data[model_name]['input_tokens'] += input_tokens
             _daily_usage_data[model_name]['output_tokens'] += output_tokens
             llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']}, Input Tokens={_daily_usage_data[model_name]['input_tokens']}, Output Tokens={_daily_usage_data[model_name]['output_tokens']}")
+            monitor.record_token_usage(input_tokens, output_tokens, model_name) # Record token usage
+            monitor.estimate_cost(model_name, input_tokens, output_tokens, provider) # Estimate cost
         else:
             llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']} (token usage not available in response metadata for this provider/response).")
         _log_daily_usage(reset=False) # Log after each successful request
@@ -628,8 +664,7 @@ def sanitize_segments(segments: List[Dict[str, Any]], config: Any) -> List[Clip]
     Cleans and validates clip data from LLM output using Pydantic models.
     Filters clips based on duration and logs invalid entries.
     """
-    llm_logger = logging.getLogger('llm')
-    error_logger = logging.getLogger('errors')
+    # Use the module-level loggers
     
     cleaned_clips: List[Clip] = []
     
@@ -670,8 +705,7 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
     """
     A robust, multi-pass approach for extracting JSON data from an LLM, with retry and correction.
     """
-    llm_logger = logging.getLogger('llm')
-    error_logger = logging.getLogger('errors')
+    # Use the module-level loggers
     
     # Determine which model configuration to use
     config_key = 'image_model' if image_path else 'llm_model'
@@ -698,6 +732,7 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
         raise ValueError(f"Provider not specified for model '{model_name}'.")
 
     current_attempt = 0
+    retry_delay = config.get('llm_retry_delay', 2) # Initial retry delay
     while current_attempt < max_attempts:
         llm_logger.info(f"Attempting JSON extraction (Pass {current_attempt + 1}/{max_attempts})...")
         
@@ -884,11 +919,14 @@ Provide ONLY the corrected JSON with the correct total_duration value:
                     corrected_response = output_schema.model_validate_json(corrected_json_string)
                     
                     llm_logger.info("Successfully corrected JSON with LLM self-correction.")
+                    llm_circuit_breaker.record_success() # Record success for self-correction
                     return corrected_response
                     
                 except (ValidationError, ValueError, json.JSONDecodeError, RuntimeError) as correction_e:
+                    llm_circuit_breaker.record_failure() # Record failure for self-correction
                     error_logger.error(f"LLM self-correction failed: {correction_e}", exc_info=True)
                 except Exception as correction_e:
+                    llm_circuit_breaker.record_failure() # Record failure for self-correction
                     error_logger.error(f"LLM self-correction failed with unexpected error: {correction_e}", exc_info=True)
             
             current_attempt += 1 # Increment attempt for non-quota errors or failed self-correction
@@ -896,23 +934,74 @@ Provide ONLY the corrected JSON with the correct total_duration value:
                 raise ValueError(f"Failed to extract and correct valid JSON after {max_attempts} attempts. Last error: {e}")
                 
         except Exception as e: # This catches any other unexpected errors not caught above
+            llm_circuit_breaker.record_failure() # Record failure for unexpected errors
             error_logger.error(f"Unexpected error during LLM interaction: {e}", exc_info=True)
             current_attempt += 1 # Increment attempt for unexpected errors
             if current_attempt == max_attempts:
                 raise RuntimeError(f"Failed due to unexpected error after {max_attempts} attempts: {e}")
             else:
-                llm_logger.info(f"Retrying in {config.get('llm_retry_delay', 2)} seconds...")
-                time.sleep(config.get('llm_retry_delay', 2))
+                llm_logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2 # Exponential backoff
     
     return [] # Should not be reached if max_retries > 0 and no exception is raised on last attempt.
 
 
-def get_clips_from_llm(transcript: List[Dict[str, Any]], user_prompt: Optional[str] = None, storyboarding_data: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+def summarize_transcript_with_llm(transcript: List[Dict[str, Any]]) -> TranscriptSummary:
+    """
+    Summarizes the full transcript using an LLM to extract a concise summary, key phrases, and main topics.
+    """
+    # Use the module-level loggers
+
+    llm_logger.info("Starting transcript summarization with LLM...")
+
+    transcript_text = "\n".join([segment['text'] for segment in transcript])
+
+    system_prompt = """
+You are an expert summarization AI. Your task is to provide a concise, sentence-level summary of the given transcript, extract key phrases, and identify the main topics discussed.
+You MUST respond with ONLY a valid JSON object. No other text, explanations, or markdown.
+
+REQUIRED JSON FORMAT:
+{
+    "summary": "A concise, sentence-level summary of the entire transcript.",
+    "key_phrases": [
+        "key phrase 1",
+        "key phrase 2"
+    ],
+    "main_topics": [
+        "main topic 1",
+        "main topic 2"
+    ]
+}
+"""
+
+    user_prompt = f"""
+Summarize the following transcript, extract key phrases, and identify main topics:
+
+Transcript:
+{transcript_text}
+"""
+
+    try:
+        summary_data = robust_llm_json_extraction(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            output_schema=TranscriptSummary,
+            max_attempts=3
+        )
+        llm_logger.info("Successfully summarized transcript with LLM.")
+        return summary_data
+    except Exception as e:
+        error_logger.error(f"Failed to summarize transcript with LLM: {e}", exc_info=True)
+        raise RuntimeError(f"Transcript summarization failed: {e}") from e
+
+
+def get_clips_from_llm(user_prompt: Optional[str] = None, storyboarding_data: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+
     """
     Get clips with retry logic using the robust LLM JSON extraction approach.
     """
-    llm_logger = logging.getLogger('llm')
-    error_logger = logging.getLogger('errors')
+    # Use the module-level loggers
     
     max_retries = config.get('llm_max_retries', 3) # Default to 3 retries
     min_clips_needed = config.get('llm_min_clips_needed', 1) # Default to 1 clip
@@ -922,12 +1011,13 @@ def get_clips_from_llm(transcript: List[Dict[str, Any]], user_prompt: Optional[s
         try:
             llm_logger.info(f"Attempting LLM clip selection ({attempt + 1}/{max_retries})...")
             
-            transcript_str = "\n".join([f"[{item.get('start', 0):.1f}s - {item.get('end', 0):.1f}s]: {item.get('text', '')}" for item in transcript])
+            # The transcript is now expected to be part of the user_prompt (formatted_llm_prompt)
+            # from LLMSelectionAgent, so we don't need to format it here.
             
             storyboard_str = json.dumps(storyboarding_data, indent=2) if storyboarding_data else "None provided"
             
             formatted_main_prompt = main_prompt.format(
-                transcript=transcript_str,
+                transcript="", # No longer directly used, but kept for format string compatibility
                 storyboarding_data=storyboard_str,
                 user_prompt=user_prompt if user_prompt else "No specific user instructions."
             )
@@ -959,3 +1049,48 @@ def get_clips_from_llm(transcript: List[Dict[str, Any]], user_prompt: Optional[s
                 raise RuntimeError(f"Failed to extract clips after {max_retries} attempts. Last error: {e}")
     
     return [] # Should not be reached if max_retries > 0 and no exception is raised on last attempt.
+
+def get_viral_recommendations_batch(recommendation_contexts: List[Dict[str, Any]]) -> List[str]:
+    """
+    Generates viral potential recommendations for multiple clips in a batch.
+    """
+    # Use the module-level loggers
+    
+    recommendations = []
+    for context_data in recommendation_contexts:
+        start = context_data['start']
+        end = context_data['end']
+        viral_score = context_data['viral_score']
+        clip_description = context_data['clip_description']
+        avg_engagement = context_data['avg_engagement']
+        hook_score = context_data['hook_score']
+        sentiment = context_data['sentiment']
+        sentiment_score = context_data['sentiment_score']
+
+        prompt = f"""
+        A video clip from {start:.2f}s to {end:.2f}s has a viral potential score of {viral_score:.2f}/10.
+        Content: "{clip_description}"
+        
+        Additional context for virality assessment:
+        - Average Engagement Score: {avg_engagement:.2f}
+        - Hook/Quotability Score: {hook_score:.2f}
+        - Dominant Audio Sentiment: {sentiment} (Score: {sentiment_score:.2f})
+        
+        Provide a brief, actionable recommendation to enhance its virality, considering the above context.
+        
+        Your response MUST be a JSON object matching the following Pydantic schema:
+        {{
+            "recommendation": "string"
+        }}
+        """
+        try:
+            recommendation_obj = robust_llm_json_extraction(
+                system_prompt="You are an expert in generating actionable recommendations for video virality.",
+                user_prompt=prompt,
+                output_schema=Recommendation
+            )
+            recommendations.append(recommendation_obj.recommendation)
+        except Exception as e:
+            error_logger.error(f"Failed to get recommendation for clip {start:.2f}s - {end:.2f}s: {e}", exc_info=True)
+            recommendations.append("N/A") # Fallback
+    return recommendations

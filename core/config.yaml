@@ -1,13 +1,36 @@
 agents:
-  audio_transcription_agent: true
-  broll_analysis_agent: true
-  content_alignment_agent: true
-  llm_selection_agent: true
-  results_summary_agent: true
-  storyboarding_agent: true
-  video_analysis_agent: true
-  video_editing_agent: true
-  video_input_agent: true
+  enabled_agents:
+  - VideoInputAgent
+  - FramePreprocessingAgent
+  - AudioIntelligenceAgent
+  - MultimodalAnalysisAgent
+  - StoryboardingAgent
+  - BrollAnalysisAgent
+  - LLMSelectionAgent
+  - LayoutSpeakerAgent
+  - HookIdentificationAgent
+  - ContentDirectorAgent
+  - ViralPotentialAgent
+  - DynamicEditingAgent
+  - MusicSyncAgent
+  - LayoutOptimizationAgent
+  - SubtitleAnimationAgent
+  - VideoProductionAgent
+  - ResultsSummaryAgent
+  parallel_groups:
+    group_1:
+    - AudioIntelligenceAgent
+    - FramePreprocessingAgent
+    group_2:
+    - MultimodalAnalysisAgent
+    - StoryboardingAgent
+    group_3:
+    - LLMSelectionAgent
+    - ContentDirectorAgent
+    group_4:
+    - ViralPotentialAgent
+    - DynamicEditingAgent
+    - MusicSyncAgent
 audio_analysis:
   speaker_diarization_enabled: true
 audio_rhythm:
@@ -66,7 +89,7 @@ llm:
     ollama: http://localhost:11434
     openai: YOUR_OPENAI_KEY
   current_active_image_model: gemma-3-12b-it
-  current_active_llm_model: gemma-3-27b-it
+  current_active_llm_model: gemini-2.5-flash-preview-04-17
   image_models_priority:
   - gemma-3-12b-it
   - gemma-3-4b-it

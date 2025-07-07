@@ -8,9 +8,11 @@ class LayoutOptimizationAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
-        layout_detection = context.get('layout_detection_results', [])
-        speaker_tracking = context.get('speaker_tracking_results', {})
-        clips = context.get('clips', [])
+        # Updated paths to retrieve data from the hierarchical context
+        layout_speaker_analysis = context.get('current_analysis', {}).get('layout_speaker_analysis_results', {})
+        layout_detection = layout_speaker_analysis.get('layout_detection', [])
+        speaker_tracking = layout_speaker_analysis.get('speaker_tracking', {})
+        clips = context.get('current_analysis', {}).get('clips', [])
 
         if not layout_detection or not clips:
             self.log_error("Layout detection or clips data missing. Cannot optimize layout.")
@@ -23,13 +25,13 @@ class LayoutOptimizationAgent(Agent):
         try:
             layout_recommendations = []
             for clip in clips:
-                # Extract start and end times from the first and last scene of the clip
-                if not clip.get('scenes'):
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has no scenes. Skipping.")
+                # Clips from ContentDirectorAgent have 'start_time' and 'end_time' directly
+                start = clip.get('start_time')
+                end = clip.get('end_time')
+
+                if start is None or end is None:
+                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping.")
                     continue
-                
-                start = clip['scenes'][0]['start_time']
-                end = clip['scenes'][-1]['end_time']
                 
                 # Analyze layout for this clip's duration
                 clip_layouts = [item for item in layout_detection if start <= item['timestamp'] <= end]
