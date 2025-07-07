@@ -1,299 +1,222 @@
-# core/config.yaml
-# Unified configuration file for Ollama-Clip-Anything
-
-# Directory settings
-temp_dir: "temp_processing"
-state_file: ".temp_clips.json"
-output_dir: "videos"
-clip_prefix: "clip"
-b_roll_assets_dir: "train2014"
-log_dir: "logs"
-
-# Model settings
-whisper_model: "base"
-
-# LLM configuration (for specific LLM interactions)
-llm:
-  min_model: "MiniCPM"
-  api_keys:
-    openai: "YOUR_OPENAI_KEY"
-    ollama: "http://localhost:11434"
-    gemini: "AIzaSyAUzFwuDG1etv1-1224LxXDg1qKh5iSq2U" # Added for Gemini API key
-  ollama_keep_alive: -1 # Keep Ollama models loaded indefinitely
-
-  # Priority lists for LLM and image recognition tasks
-  llm_models_priority:
-    - "gemini-2.5-flash-preview-04-17"
-    - "gemini-2.0-flash"
-    - "gemini-2.5-flash-lite-preview-06-17"
-    - "gemma-3-27b-it"
-    - "gemma-3-12b-it"
-    - "gemma-3-4b-it"
-    - "gemma-3-1b-it"
-    - "qwen2.5-coder:latest"
-  current_active_llm_model: "gemini-2.5-flash-preview-04-17" # Dynamically updated
-
-  image_models_priority:
-    - "gemma-3-12b-it"
-    - "gemma-3-4b-it"
-    - "gemma-3-1b-it"
-    - "llava:latest" 
-    - "qwen2.5vl:3b"
-  current_active_image_model: "gemma-3-12b-it" # Dynamically updated
-
-  # Detailed configuration for each model
-  models:
-
-    # Gemma Models
-
-    "gemma-3-1b-it": # Text only model
-      requests_per_minute: 30
-      requests_per_day: 14400
-      provider: "gemini"
-
-    "gemma-3-4b-it":
-      requests_per_minute: 30
-      requests_per_day: 14400
-      provider: "gemini"
-
-    "gemma-3-12b-it":
-      requests_per_minute: 30
-      requests_per_day: 14400
-      provider: "gemini"
-
-    "gemma-3-27b-it":
-      requests_per_minute: 30
-      requests_per_day: 14400
-      provider: "gemini"
-
-    # Gemini 2.5 Models
-
-    "gemini-2.5-flash":
-      requests_per_minute: 10
-      requests_per_day: 500
-      provider: "gemini"
-
-    "gemini-2.5-flash-preview-04-17":
-      requests_per_minute: 10
-      requests_per_day: 500
-      provider: "gemini"
-
-    "gemini-2.5-flash-lite-preview-06-17":
-      requests_per_minute: 15
-      requests_per_day: 500
-      provider: "gemini"
-
-    # Gemini 2.0 Models
-
-    "gemini-2.0-flash":
-      requests_per_minute: 15
-      requests_per_day: 1500
-      provider: "gemini"
-
-    "gemini-2.0-flash-preview-image-generation":
-      requests_per_minute: 10
-      requests_per_day: 1500
-      provider: "gemini"
-
-    "gemini-2.0-flash-lite":
-      requests_per_minute: 30
-      requests_per_day: 1500
-      provider: "gemini"
-
-    "gemini-2.0-flash-lite":
-      requests_per_minute: 30
-      requests_per_day: 1500
-      provider: "gemini"
-
-    # Ollama Models
-
-    ## Llama
-
-    "llama3.1:8b":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    # Phi
-
-    "phi3:3.8b":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    "phi3:3.8b-instruct":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    ## Gemma
-
-    "gemma3:4b":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    "codegemma:7b":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    "codegemma:7b-instruct":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    ## Deepseek
-
-    "deepseek-coder:6.7b":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    ## Qwen
-
-    "qwen2.5-coder:latest":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    "qwen3:8b":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    ## Dolphin
-
-    "dolphin3:latest":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    ## Mistral
-
-    "mistral:latest":
-      requests_per_minute: null 
-      requests_per_day: null 
-      provider: "ollama"
-
-    
-# Subtitle settings
-subtitle_font_families: ['Impact', 'Arial Black', 'Bebas Neue']
-subtitle_background_color: 'FFA500'
-subtitle_border_radius: 10
-subtitle_font_size: 28
-subtitle_font_color: 'FFFFFF'
-subtitle_outline_color: '000000'
-subtitle_shadow_color: '000000'
-highlight_font_color: '00FFFF'
-highlight_outline_color: '000000'
-
-# Video processing settings
-clip_duration_min: 30 # Minimum desired clip duration in seconds
-clip_duration_max: 120 # Maximum desired clip duration in seconds
-clip_validation_min: 30 # Minimum valid clip duration for internal validation
-clip_validation_max: 120 # Maximum valid clip duration for internal validation
-smoothing_factor: 0.1
-
-# LLM Interaction Settings (general)
-llm_max_retries: 5
-llm_min_clips_needed: 1 # Changed from 10 to 1
-
-# Personalization settings
-custom_clip_themes: [] # Placeholder for custom clip themes
-
-# Agent Configuration (enable/disable agents)
 agents:
-  video_input_agent: true
-  storyboarding_agent: true
-  content_alignment_agent: true
   audio_transcription_agent: true
   broll_analysis_agent: true
+  content_alignment_agent: true
   llm_selection_agent: true
+  results_summary_agent: true
+  storyboarding_agent: true
   video_analysis_agent: true
   video_editing_agent: true
-  results_summary_agent: true
-
-# Encoding settings
-video_encoder: "h264_nvenc"
-ffmpeg_path: "/usr/local/bin/ffmpeg" # Path to FFmpeg executable. Set to None to use system's PATH.
-ffmpeg_global_params:
-  - '-pix_fmt'
-  - 'yuv420p'
-  - '-movflags'
-  - '+faststart'
-ffmpeg_encoder_params:
-  h264_nvenc:
-    - '-preset'
-    - 'p5'
-    - '-tune'
-    - 'hq'
-    - '-rc'
-    - 'vbr_hq'
-    - '20'
-  hevc_nvenc:
-    - '-preset'
-    - 'p5'
-    - '-tune'
-    - 'hq'
-  av1_nvenc:
-    - '-preset'
-    - 'p5'
-    - '-tune'
-    - 'hq'
-
-# New pipeline configuration sections (agent-specific settings)
+  video_input_agent: true
+audio_analysis:
+  speaker_diarization_enabled: true
+audio_rhythm:
+  beat_matching_sensitivity: 0.7
+  tempo_detection_sensitivity: 0.8
+b_roll_assets_dir: broll
+clip_duration_max: 120
+clip_duration_min: 30
+clip_prefix: clip
+clip_validation_max: 120
+clip_validation_min: 30
+custom_clip_themes: []
 engagement_analysis:
+  energy_level_threshold: 0.5
   facial_expression_threshold: 0.7
   gesture_detection_threshold: 0.6
-  energy_level_threshold: 0.5
-
-video_analysis:
-  frame_sample_rate: 5
-  batch_size: 5
-
-audio_rhythm:
-  tempo_detection_sensitivity: 0.8
-  beat_matching_sensitivity: 0.7
-
+ffmpeg_encoder_params:
+  av1_nvenc:
+  - -preset
+  - p5
+  - -tune
+  - hq
+  h264_nvenc:
+  - -preset
+  - p5
+  - -tune
+  - hq
+  - -rc
+  - vbr_hq
+  - '20'
+  hevc_nvenc:
+  - -preset
+  - p5
+  - -tune
+  - hq
+ffmpeg_global_params:
+- -pix_fmt
+- yuv420p
+- -movflags
+- +faststart
+ffmpeg_path: /usr/local/bin/ffmpeg
+highlight_font_color: 00FFFF
+highlight_outline_color: '000000'
+huggingface_tokens:
+  pyannote_audio: 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
+intro_narration:
+  duration_limit_seconds: 5
+  tone_matching_enabled: true
+  voice_cloning_enabled: true
 layout_detection:
   multi_person_detection_threshold: 0.75
   screen_share_identification_threshold: 0.8
-
-subtitle_animation:
-  word_by_word_timing_enabled: true
-  emphasis_effects_enabled: true
-  speaker_color_coding_enabled: true
-
-music_integration:
-  mood_detection_enabled: true
-  tempo_matching_enabled: true
-  beat_synchronization_enabled: true
-
-intro_narration:
-  voice_cloning_enabled: true
-  tone_matching_enabled: true
-  duration_limit_seconds: 5
-
-qwen_vision:
-  frame_extraction_rate_fps: 1
-  resolution_settings: "720p"
-  temporal_encoding_parameters: "default"
-  batch_size: 20
-  ollama_qwen_vl_model_name: "qwen2.5-coder:7b"
-
-huggingface_tokens:
-  pyannote_audio: "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"
-
-audio_analysis:
-  speaker_diarization_enabled: true
-
+llm:
+  api_keys:
+    gemini: AIzaSyC1PN8c7Vn-O3q-ZP1b8RjaOx6aNP--d5Y
+    ollama: http://localhost:11434
+    openai: YOUR_OPENAI_KEY
+  current_active_image_model: gemma-3-12b-it
+  current_active_llm_model: gemma-3-27b-it
+  image_models_priority:
+  - gemma-3-12b-it
+  - gemma-3-4b-it
+  - gemma-3-1b-it
+  - llava:latest
+  - qwen2.5vl:3b
+  llm_models_priority:
+  - gemma-3-27b-it
+  - gemini-2.5-flash-preview-04-17
+  - gemini-2.5-flash
+  - gemini-2.5-flash-lite-preview-06-17
+  min_model: MiniCPM
+  models:
+    codegemma:7b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    codegemma:7b-instruct:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    deepseek-coder:6.7b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    dolphin3:latest:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    gemini-2.0-flash:
+      provider: gemini
+      requests_per_day: 1500
+      requests_per_minute: 15
+      tokens_per_minute: 250000
+    gemini-2.0-flash-lite:
+      provider: gemini
+      requests_per_day: 1500
+      requests_per_minute: 30
+      tokens_per_minute: 250000
+    gemini-2.0-flash-preview-image-generation:
+      provider: gemini
+      requests_per_day: 1500
+      requests_per_minute: 10
+      tokens_per_minute: 250000
+    gemini-2.5-flash:
+      provider: gemini
+      requests_per_day: 500
+      requests_per_minute: 10
+      tokens_per_minute: 250000
+    gemini-2.5-flash-lite-preview-06-17:
+      provider: gemini
+      requests_per_day: 500
+      requests_per_minute: 15
+      tokens_per_minute: 250000
+    gemini-2.5-flash-preview-04-17:
+      provider: gemini
+      requests_per_day: 500
+      requests_per_minute: 10
+      tokens_per_minute: 250000
+    gemma-3-12b-it:
+      provider: gemini
+      requests_per_day: 14400
+      requests_per_minute: 30
+      tokens_per_minute: 250000
+    gemma-3-1b-it:
+      provider: gemini
+      requests_per_day: 14400
+      requests_per_minute: 30
+      tokens_per_minute: 250000
+    gemma-3-27b-it:
+      provider: gemini
+      requests_per_day: 14400
+      requests_per_minute: 30
+      tokens_per_minute: 250000
+    gemma-3-4b-it:
+      provider: gemini
+      requests_per_day: 14400
+      requests_per_minute: 30
+      tokens_per_minute: 250000
+    gemma3:4b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    llama3.1:8b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    mistral:latest:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    phi3:3.8b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    phi3:3.8b-instruct:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    qwen2.5-coder:latest:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    qwen3:8b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+  ollama_keep_alive: -1
+llm_agent_max_retries: 5
+llm_max_retries: 5
+llm_min_clips_needed: 1
 llm_selection:
+  json_processing_model: llm_model
   max_retries: 5
   min_clips: 1
-  json_processing_model: llm_model # Changed LLM model
-  
+log_dir: logs
+music_integration:
+  beat_synchronization_enabled: true
+  mood_detection_enabled: true
+  tempo_matching_enabled: true
+output_dir: videos
+qwen_vision:
+  batch_size: 20
+  frame_extraction_rate_fps: 1
+  ollama_qwen_vl_model_name: qwen2.5-coder:7b
+  resolution_settings: 720p
+  temporal_encoding_parameters: default
 scene_detection:
-  threshold: 0.3
   min_scene_duration: 1.0
   sample_rate: 1
+  threshold: 0.3
+smoothing_factor: 0.1
+state_file: .temp_clips.json
+subtitle_animation:
+  emphasis_effects_enabled: true
+  speaker_color_coding_enabled: true
+  word_by_word_timing_enabled: true
+subtitle_background_color: FFA500
+subtitle_border_radius: 10
+subtitle_font_color: FFFFFF
+subtitle_font_families:
+- Impact
+- Arial Black
+- Bebas Neue
+subtitle_font_size: 28
+subtitle_outline_color: '000000'
+subtitle_shadow_color: '000000'
+temp_dir: temp_processing
+video_analysis:
+  batch_size: 5
+  frame_sample_rate: 5
+video_encoder: h264_nvenc
+whisper_model: base

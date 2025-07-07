@@ -23,6 +23,7 @@ from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI # Added for Gemini
 from pydantic import BaseModel, Field, RootModel, ValidationError, field_validator, model_validator
 
+from google.api_core.exceptions import ResourceExhausted # Import the specific exception
 
 # Disable HTTPX logging for cleaner output
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -54,10 +55,29 @@ class Clip(BaseModel):
         if not self.scenes:
             raise ValueError("A clip must contain at least one scene.")
         
-        # Ensure scenes are chronological
-        sorted_scenes = sorted(self.scenes, key=lambda s: s.start_time)
-        if sorted_scenes != self.scenes:
-            raise ValueError("Scenes are not chronological.")
+        # Ensure scenes are chronological and do not overlap
+        # First, sort them to ensure the loop logic is sound, even if LLM provides unsorted
+        self.scenes.sort(key=lambda s: s.start_time)
+
+        epsilon = 1e-6 # Small tolerance for floating point comparisons
+
+        for i in range(len(self.scenes) - 1):
+            current_scene = self.scenes[i]
+            next_scene = self.scenes[i+1]
+
+            # Check for valid numeric types for times
+            if not isinstance(current_scene.start_time, (int, float)) or \
+               not isinstance(current_scene.end_time, (int, float)) or \
+               not isinstance(next_scene.start_time, (int, float)):
+                raise ValueError(f"Invalid time types in scenes. Scene {i} times: ({current_scene.start_time}, {current_scene.end_time}), Scene {i+1} start: {next_scene.start_time}. All times must be numeric.")
+
+            # Check for overlap or non-chronological order
+            if current_scene.end_time > next_scene.start_time + epsilon:
+                raise ValueError(f"Scenes are overlapping or non-chronological: Scene {i} ends at {current_scene.end_time:.4f}s, but Scene {i+1} starts at {next_scene.start_time:.4f}s. Overlap detected.")
+            
+            # Ensure strictly increasing start times (no duplicate start times)
+            if current_scene.start_time >= next_scene.start_time:
+                raise ValueError(f"Scenes are not strictly chronological: Scene {i} starts at {current_scene.start_time:.4f}s, but Scene {i+1} starts at {next_scene.start_time:.4f}s. Duplicate or out-of-order start time.")
         
         # CORRECTED LOGIC: Calculate total_duration by summing individual scene durations
         calculated_duration = sum(s.end_time - s.start_time for s in self.scenes)
@@ -79,6 +99,10 @@ class Clips(RootModel[List[Clip]]):
         if isinstance(v, list):
             return v
         raise TypeError("Input must be a dict or list of dicts representing Clip(s)")
+
+# New Pydantic model for raw text suggestions
+class SuggestionsResponse(BaseModel):
+    suggestions_text: str = Field(description="Raw text containing B-roll suggestions.")
 
 # Define common hallucinated words/units to remove from numerical values
 HALLYUCINATED_UNITS = r'\b(?:seconds?|s|minutes?|min|m|milliseconds?|ms|hours?|h)\b'
@@ -174,6 +198,7 @@ Analyze the following video transcript and extract 5 of the most engaging, funny
 VALIDATION CHECKLIST before responding:
 1. Sum of all scene_duration is equal to total_duration
 2. total_duration is between 60-90 seconds
+3. Scenes must be in chronological order and must not overlap.
 3. Output is valid JSON
 4. No markdown, no explanations, just JSON
 
@@ -208,7 +233,7 @@ def setup_logging(video_name: str, video_duration: float, video_quality: str):
     
     # Set level for all loggers
     session_logger.setLevel(logging.INFO)
-    llm_logger.setLevel(logging.WARNING)
+    llm_logger.setLevel(logging.INFO) # Changed to INFO for debugging
     error_logger.setLevel(logging.ERROR) # Changed to ERROR for actual errors
 
     # Prevent adding multiple handlers if setup_logging is called multiple times
@@ -226,8 +251,8 @@ def setup_logging(video_name: str, video_duration: float, video_quality: str):
 
         # Add handlers to the loggers
         session_logger.addHandler(session_handler)
-        llm_logger.addHandler(llm_handler)
-        error_logger.addHandler(error_handler)
+        llm_logger.addHandler(llm_handler) # Corrected: pass handler, not logger
+        error_logger.addHandler(error_handler) # Corrected: pass handler, not logger
 
     # Log session info
     session_logger.info(f"Video: {video_name}")
@@ -276,6 +301,7 @@ def cleanup():
 _daily_usage_data: Dict[str, Dict[str, Any]] = {} # Changed to be keyed by model name
 _last_reset_date: str = "" # To store the date of the last reset
 _last_request_timestamps: Dict[str, float] = {} # To track last request time for proactive rate limiting
+_last_token_timestamps: Dict[str, float] = {} # To track last token usage time for proactive rate limiting
 
 def _initialize_daily_usage():
     """
@@ -286,6 +312,7 @@ def _initialize_daily_usage():
     current_date = datetime.now().strftime("%Y-%m-%d")
     log_dir = config.get('log_dir', 'logs')
     usage_log_file = os.path.join(log_dir, 'usage.logs')
+    daily_summary_log_file = os.path.join(log_dir, 'daily_usage.log') # New daily summary log
     llm_logger = logging.getLogger('llm')
 
     # Load existing usage data if available and not already loaded for the current session
@@ -317,7 +344,8 @@ def _initialize_daily_usage():
     if _last_reset_date != current_date:
         if _last_reset_date: # If there was old data (even if not for current day), log it before resetting
             llm_logger.info(f"New day detected. Logging previous day's usage for {_last_reset_date}:")
-            _log_daily_usage(reset=False) # Log without resetting first
+            _write_daily_summary_log(_last_reset_date, _daily_usage_data) # Log summary for previous day
+            _log_daily_usage(reset=False) # Log raw usage without resetting first
         
         # Reset for the current day
         _daily_usage_data = {} # Reset to empty dict
@@ -355,8 +383,38 @@ def _log_daily_usage(reset: bool = False):
         _last_reset_date = datetime.now().strftime("%Y-%m-%d")
         llm_logger.info("In-memory daily usage counters reset.")
 
+def _write_daily_summary_log(date: str, usage_data: Dict[str, Dict[str, Any]]):
+    """
+    Writes a daily summary of LLM usage to daily_usage.log.
+    """
+    log_dir = config.get('log_dir', 'logs')
+    daily_summary_log_file = os.path.join(log_dir, 'daily_usage.log')
+    llm_logger = logging.getLogger('llm')
 
-def llm_pass(model_name: str, provider: str, requests_per_minute: float, requests_per_day: float, messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
+    try:
+        with open(daily_summary_log_file, 'a') as f:
+            f.write(f"{date}\n")
+            for model_name, data in usage_data.items():
+                requests = data.get('requests', 0)
+                input_tokens = data.get('input_tokens', 0)
+                output_tokens = data.get('output_tokens', 0)
+                limit_hits = data.get('limit_hits', {})
+                tpm_hits = limit_hits.get('tpm', 0)
+                rpm_hits = limit_hits.get('rpm', 0)
+                rpd_hits = limit_hits.get('rpd', 0)
+
+                summary_line = (
+                    f"- {model_name} - {requests} Requests - {input_tokens} Input Tokens - "
+                    f"{output_tokens} Output Tokens - Limit hit counter : {tpm_hits} TPM, {rpm_hits} RPM, {rpd_hits} RPD\n"
+                )
+                f.write(summary_line)
+            f.write("\n") # Add a blank line for separation
+        llm_logger.info(f"Daily summary logged to {daily_summary_log_file} for {date}")
+    except Exception as e:
+        llm_logger.error(f"Failed to write daily summary log: {e}")
+
+
+def llm_pass(model_name: str, provider: str, requests_per_minute: float, requests_per_day: float, tokens_per_minute: float, messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
     """Send messages to LLM model and return raw response content."""
     llm_logger = logging.getLogger('llm')
     error_logger = logging.getLogger('errors')
@@ -373,18 +431,36 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
 
         if time_since_last_request < min_interval_between_requests:
             sleep_duration = min_interval_between_requests - time_since_last_request
-            llm_logger.info(f"Proactive rate limit: Sleeping for {sleep_duration:.2f} seconds for {model_name}...")
+            llm_logger.info(f"Proactive rate limit: Sleeping for {sleep_duration:.2f} seconds for {model_name} (requests)...")
             time.sleep(sleep_duration)
     
     _last_request_timestamps[model_name] = time.time() # Update timestamp after potential sleep
 
-    # Proactive Daily Limit Check
+    # Proactive Rate Limiting (Tokens Per Minute)
+    if tokens_per_minute != float('inf'):
+        min_interval_between_token_usage = (60 / tokens_per_minute) * 1.1 # 10% buffer
+        last_token_time = _last_token_timestamps.get(model_name, 0.0)
+        time_since_last_token_usage = time.time() - last_token_time
+
+        # This check is more complex as we don't know token usage *before* the request.
+        # We'll rely on the API's rate limiting for this, but keep the timestamp updated.
+        # The primary proactive check for tokens will be handled by the daily limit.
+        if time_since_last_token_usage < min_interval_between_token_usage:
+            # This is a placeholder for more sophisticated token-based proactive limiting
+            # which would require estimating tokens before sending the request.
+            # For now, we'll just ensure the timestamp is updated.
+            pass
+    
+    _last_token_timestamps[model_name] = time.time() # Update timestamp after potential sleep
+
+    # Proactive Daily Limit Check (Requests)
     current_requests = _daily_usage_data.get(model_name, {}).get('requests', 0)
     if current_requests >= requests_per_day:
-        llm_logger.warning(f"Proactive daily quota check: {model_name} has reached its daily limit ({current_requests}/{requests_per_day}).")
-        # This function no longer handles model switching. It just raises an error.
-        # The calling function (robust_llm_json_extraction) will handle the switch.
-        raise RuntimeError(f"Daily quota exhausted for model: {model_name}")
+        llm_logger.warning(f"Proactive daily quota check: {model_name} has reached its daily request limit ({current_requests}/{requests_per_day}).")
+        raise RuntimeError(f"Daily request quota exhausted for model: {model_name}")
+
+    # Proactive Daily Limit Check (Tokens) - This would require estimating tokens before sending
+    # For now, we'll let the API handle token exhaustion and catch the error.
 
 
     try:
@@ -436,6 +512,7 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
         
         format_param = "json" if use_json_format else None # Apply JSON format if requested
 
+        # Instantiate the LLM model here to ensure it picks up the latest active model
         if provider == "gemini":
             gemini_api_key = config.get('llm.api_keys.gemini')
             if not gemini_api_key:
@@ -445,7 +522,8 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
                 model=model_name, # Use the determined model
                 temperature=0,
                 google_api_key=gemini_api_key,
-                convert_system_message_to_human=True # Gemini often prefers system messages as human
+                convert_system_message_to_human=True, # Gemini often prefers system messages as human
+                max_retries=0 # Disable internal retries for immediate error propagation
             )
             
         elif provider == "ollama": # Default to Ollama for any other model name
@@ -462,19 +540,30 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
         response = llm_model.invoke(messages_to_send)
 
         # Update daily usage counters after successful request
-        _daily_usage_data.setdefault(model_name, {'requests': 0, 'tokens': 0})
+        _daily_usage_data.setdefault(model_name, {'requests': 0, 'input_tokens': 0, 'output_tokens': 0, 'limit_hits': {'tpm': 0, 'rpm': 0, 'rpd': 0}})
         _daily_usage_data[model_name]['requests'] += 1
-        # Safely access usage_metadata from response_metadata if available
+        
+        # Extract and log token counts for all providers if usage_metadata is available
         if hasattr(response, 'response_metadata') and 'usage_metadata' in response.response_metadata:
             usage_metadata = response.response_metadata['usage_metadata']
-            total_tokens = usage_metadata.get('total_tokens', 0)
-            _daily_usage_data[model_name]['tokens'] += total_tokens
-            llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']}, Tokens={_daily_usage_data[model_name]['tokens']}")
+            input_tokens = usage_metadata.get('prompt_token_count', 0)
+            output_tokens = usage_metadata.get('candidates_token_count', 0)
+            _daily_usage_data[model_name]['input_tokens'] += input_tokens
+            _daily_usage_data[model_name]['output_tokens'] += output_tokens
+            llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']}, Input Tokens={_daily_usage_data[model_name]['input_tokens']}, Output Tokens={_daily_usage_data[model_name]['output_tokens']}")
         else:
-            llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']} (token usage not available).")
+            llm_logger.info(f"Updated daily usage for {model_name}: Requests={_daily_usage_data[model_name]['requests']} (token usage not available in response metadata for this provider/response).")
         _log_daily_usage(reset=False) # Log after each successful request
 
         return str(response.content)
+    except ResourceExhausted as e:
+        # Specific handling for Gemini ResourceExhausted errors
+        if "quota_metric: \"generativelanguage.googleapis.com/generate_content_free_tier_input_token_count\"" in str(e):
+            error_logger.error(f"LLM request failed due to token quota exhaustion: {e}", exc_info=True)
+            raise RuntimeError(f"Token quota exhausted for model: {model_name}") from e
+        else:
+            error_logger.error(f"LLM request failed with ResourceExhausted error: {e}", exc_info=True)
+            raise # Re-raise other ResourceExhausted errors
     except Exception as e:
         error_logger.error(f"LLM request failed: {e}", exc_info=True)
         raise
@@ -586,12 +675,12 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
     
     # Determine which model configuration to use
     config_key = 'image_model' if image_path else 'llm_model'
-    model_name = config.get(f'llm.current_active_{config_key}')
     
+    # Get initial model details
+    model_name = config.get(f'llm.current_active_{config_key}')
     if not model_name:
         raise ValueError(f"Current active model not found in config for {config_key}.")
 
-    # Get model-specific details from the 'models' dictionary
     all_models = config.get('llm.models')
     if not all_models or not isinstance(all_models, dict):
         raise ValueError("LLM models configuration not found or is invalid.")
@@ -603,12 +692,14 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
     provider = model_details.get('provider')
     requests_per_minute = model_details.get('requests_per_minute', float('inf'))
     requests_per_day = model_details.get('requests_per_day', float('inf'))
+    tokens_per_minute = model_details.get('tokens_per_minute', float('inf'))
 
     if not provider:
         raise ValueError(f"Provider not specified for model '{model_name}'.")
 
-    for attempt in range(max_attempts):
-        llm_logger.info(f"Attempting JSON extraction (Pass {attempt + 1}/{max_attempts})...")
+    current_attempt = 0
+    while current_attempt < max_attempts:
+        llm_logger.info(f"Attempting JSON extraction (Pass {current_attempt + 1}/{max_attempts})...")
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -622,56 +713,108 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
                 provider=provider,
                 requests_per_minute=requests_per_minute,
                 requests_per_day=requests_per_day,
+                tokens_per_minute=tokens_per_minute,
                 messages=messages, 
                 image_path=image_path,
-                use_json_format=(not image_path)
+                use_json_format=(not raw_output_mode)
             )
             
-            llm_logger.info(f"LLM Raw Response (Attempt {attempt + 1}):\n{raw_llm_response_content}")
+            llm_logger.info(f"LLM Raw Response (Attempt {current_attempt + 1}):\n{raw_llm_response_content}")
 
             if raw_output_mode:
-                return raw_llm_response_content
+                return output_schema(suggestions_text=raw_llm_response_content)
             
             json_string = _extract_json_from_string(raw_llm_response_content)
             
             if not json_string:
                 raise ValueError("No JSON content found in LLM response.")
 
-            # Pydantic's model_validate_json will handle json.loads internally
+            # Parse the JSON string into a Python object
+            parsed_data = json.loads(json_string)
+            llm_logger.info(f"Parsed data before sorting: {json.dumps(parsed_data, indent=2)}")
+
+            # If the output schema is for Clips (list of Clip), sort scenes within each clip and filter invalid ones
+            if output_schema == Clips and isinstance(parsed_data, list):
+                processed_clips_data = []
+                for i, clip_data in enumerate(parsed_data):
+                    if 'scenes' in clip_data and isinstance(clip_data['scenes'], list):
+                        valid_scenes = []
+                        # Sort scenes first to handle chronological validation correctly
+                        clip_data['scenes'].sort(key=lambda s: s.get('start_time', 0))
+
+                        for j, scene in enumerate(clip_data['scenes']):
+                            start_time = scene.get('start_time')
+                            end_time = scene.get('end_time')
+
+                            if not isinstance(start_time, (int, float)) or \
+                               not isinstance(end_time, (int, float)):
+                                error_logger.warning(f"Scene {j} in clip {i} has non-numeric times: start={start_time}, end={end_time}. Skipping scene.")
+                                continue
+
+                            # Enforce minimum duration (e.g., 2 seconds as per prompt requirement)
+                            if end_time - start_time < 2.0 - 1e-6: # Allow for floating point inaccuracies
+                                error_logger.warning(f"Scene {j} in clip {i} has duration less than 2 seconds ({end_time - start_time:.2f}s). Skipping scene.")
+                                continue
+                            
+                            valid_scenes.append(scene)
+                        
+                        if valid_scenes:
+                            clip_data['scenes'] = valid_scenes
+                            # Recalculate total_duration based on valid scenes
+                            clip_data['total_duration'] = sum(s['end_time'] - s['start_time'] for s in valid_scenes)
+                            processed_clips_data.append(clip_data)
+                        else:
+                            error_logger.warning(f"Clip {i} has no valid scenes after filtering. Skipping clip.")
+                
+                # Re-serialize the processed data back to a JSON string
+                json_string = json.dumps(processed_clips_data)
+                llm_logger.info(f"JSON string after sorting and filtering: {json_string}")
+
             response = output_schema.model_validate_json(json_string)
             
-            llm_logger.info(f"Successfully extracted JSON on pass {attempt + 1}.")
+            llm_logger.info(f"Successfully extracted JSON on pass {current_attempt + 1}.")
             return response
             
-        except (ValidationError, ValueError, json.JSONDecodeError) as e:
-            error_logger.error(f"JSON validation/parsing failed on pass {attempt + 1}: {e}. Raw LLM response: {raw_llm_response_content[:500]}...", exc_info=True)
+        except (ValidationError, ValueError, json.JSONDecodeError, RuntimeError) as e:
+            error_logger.error(f"JSON validation/parsing failed on pass {current_attempt + 1}: {e}. Raw LLM response: {raw_llm_response_content[:500]}...", exc_info=True)
             
-            # Check for daily quota exhaustion and switch models persistently
-            if "Daily quota exhausted" in str(e) or "GenerateRequestsPerDayPerProjectPerModel-FreeTier" in str(e):
-                llm_logger.warning(f"Daily quota exhausted for {model_name}. Attempting to switch to secondary model.")
+            if "Daily request quota exhausted" in str(e) or "Token quota exhausted" in str(e):
+                llm_logger.warning(f"Quota exhausted for {model_name}. Attempting to switch to secondary model.")
                 try:
-                    config.update_llm_active_model(config_key)
-                    # Reload config to get the new active model
-                    config._load_config() 
-                    # Update model_name and its details for the next attempt
+                    priority_list_key = f"{config_key}s_priority"
+                    current_active_model_key = f"current_active_{config_key}"
+                    
+                    priority_list = config.get(f'llm.{priority_list_key}')
+                    current_index = priority_list.index(model_name)
+                    next_index = (current_index + 1) % len(priority_list)
+                    new_active_model = priority_list[next_index]
+                    
+                    config.set(f'llm.{current_active_model_key}', new_active_model)
+                    
+                    # Re-fetch model details for the next attempt
                     model_name = config.get(f'llm.current_active_{config_key}')
-                    model_details = config.get(f'llm.models.{model_name}')
+                    model_details = all_models.get(model_name) # Use all_models here
                     if not model_details:
                         raise ValueError(f"Model details not found for new active model '{model_name}'.")
                     provider = model_details.get('provider')
                     requests_per_minute = model_details.get('requests_per_minute', float('inf'))
                     requests_per_day = model_details.get('requests_per_day', float('inf'))
+                    tokens_per_minute = model_details.get('tokens_per_minute', float('inf'))
 
                     llm_logger.info(f"Switched to new active model: {model_name}. Retrying...")
-                    # Reset attempt counter to retry with the new model
-                    attempt = -1 # Will become 0 at the start of the next loop iteration
-                    continue
+                    # Do NOT increment current_attempt here, as we are retrying with a new model
+                    # The while loop condition will be checked again.
+                    continue # This will restart the while loop with the same current_attempt, but new model
                 except Exception as switch_e:
                     error_logger.error(f"Failed to switch LLM model: {switch_e}", exc_info=True)
-                    if attempt == max_attempts - 1:
+                    # If model switch fails, increment attempt and proceed to next check
+                    current_attempt += 1
+                    if current_attempt == max_attempts:
                         raise ValueError(f"Failed to extract and correct valid JSON after {max_attempts} attempts. Last error: {e}") from e
+                    continue # Continue to next attempt if switch failed but not max attempts
             
-            if attempt < max_attempts - 1:
+            # If not a quota error, or if model switch failed, try self-correction
+            if current_attempt < max_attempts - 1:
                 llm_logger.info("Attempting LLM self-correction...")
                 correction_prompt = f"""
 The total_duration in this JSON is wrong: {str(e)[:200]}
@@ -681,38 +824,38 @@ Calculate the correct total_duration as a sum of all scene_duration values.
 You must respond with ONLY a valid JSON. No explanations, no markdown, no other text.
 
 Required JSON format:
-{
+{{
     "clip_description": "Brief description of the clip",
     "total_duration": 74.2,
     "reason": "Why this clip was selected",
     "viral_potential_score": 8,
     "scenes": [
-        {
+        {{
             "start_time": 120.6,
             "end_time": 135.6,
             "scene_duration": 15.0,
             "description": "What happens in this scene"
-        }
-        {
+        }}
+        {{
             "start_time": 140.3,
             "end_time": 153.3,
             "scene_duration": 13.0,
             "description": "What happens in this scene"
-        }
-        {
+        }}
+        {{
             "start_time": 160.7,
             "end_time": 195.2,
             "scene_duration": 34.5,
             "description": "What happens in this scene"
-        }
-        {
+        }}
+        {{
             "start_time": 200.7,
             "end_time": 212.4,
             "scene_duration": 11.7,
             "description": "What happens in this scene"
-        }
+        }}
     ]
-}
+}}
 
 Your previous invalid response was:
 {raw_llm_response_content[:300]}...
@@ -729,11 +872,10 @@ Provide ONLY the corrected JSON with the correct total_duration value:
                         provider=provider,
                         requests_per_minute=requests_per_minute,
                         requests_per_day=requests_per_day,
+                        tokens_per_minute=tokens_per_minute,
                         messages=correction_messages,
                         use_json_format=True
                     )
-                    
-                    llm_logger.info(f"LLM Correction Response: {corrected_raw_response}")
                     
                     corrected_json_string = _extract_json_from_string(corrected_raw_response)
                     if not corrected_json_string:
@@ -744,21 +886,25 @@ Provide ONLY the corrected JSON with the correct total_duration value:
                     llm_logger.info("Successfully corrected JSON with LLM self-correction.")
                     return corrected_response
                     
-                except (ValidationError, ValueError, json.JSONDecodeError) as correction_e:
+                except (ValidationError, ValueError, json.JSONDecodeError, RuntimeError) as correction_e:
                     error_logger.error(f"LLM self-correction failed: {correction_e}", exc_info=True)
                 except Exception as correction_e:
                     error_logger.error(f"LLM self-correction failed with unexpected error: {correction_e}", exc_info=True)
             
-            if attempt == max_attempts - 1:
+            current_attempt += 1 # Increment attempt for non-quota errors or failed self-correction
+            if current_attempt == max_attempts:
                 raise ValueError(f"Failed to extract and correct valid JSON after {max_attempts} attempts. Last error: {e}")
                 
-        except Exception as e:
+        except Exception as e: # This catches any other unexpected errors not caught above
             error_logger.error(f"Unexpected error during LLM interaction: {e}", exc_info=True)
-            if attempt == max_attempts - 1:
+            current_attempt += 1 # Increment attempt for unexpected errors
+            if current_attempt == max_attempts:
                 raise RuntimeError(f"Failed due to unexpected error after {max_attempts} attempts: {e}")
             else:
                 llm_logger.info(f"Retrying in {config.get('llm_retry_delay', 2)} seconds...")
                 time.sleep(config.get('llm_retry_delay', 2))
+    
+    return [] # Should not be reached if max_retries > 0 and no exception is raised on last attempt.
 
 
 def get_clips_from_llm(transcript: List[Dict[str, Any]], user_prompt: Optional[str] = None, storyboarding_data: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
@@ -787,8 +933,8 @@ def get_clips_from_llm(transcript: List[Dict[str, Any]], user_prompt: Optional[s
             )
 
             clips_data_root_model = robust_llm_json_extraction(system_prompt, formatted_main_prompt, output_schema=Clips)
-            
-            # clips_data_root_model is a Clips object, its actual list is in .root
+
+
             cleaned_segments = sanitize_segments(clips_data_root_model.root, config)
             
             if len(cleaned_segments) >= min_clips_needed:

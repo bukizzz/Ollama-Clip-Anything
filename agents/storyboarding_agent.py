@@ -28,7 +28,7 @@ class StoryboardingAgent(Agent):
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         video_path = context.get("processed_video_path")
         video_info = context.get("video_info")
-        qwen_results = context.get('qwen_vision_analysis_results', [])
+        # qwen_results = context.get('qwen_vision_analysis_results', []) # No longer directly used in storyboard entry
 
         if not video_path or not video_info:
             self.log_error("Video path or info missing. Skipping storyboarding.")
@@ -123,23 +123,15 @@ class StoryboardingAgent(Agent):
             timestamp = frame_info['timestamp_sec']
             temp_frame_path = frame_info['frame_path']
 
-            # Get Qwen-VL data for this timestamp (find the closest one)
-            qwen_data = None
-            if qwen_results:
-                # Find the Qwen result closest to the current timestamp
-                qwen_data = min(qwen_results, key=lambda x: abs(x['timestamp'] - timestamp))
-                # Optional: Check if the closest Qwen result is "close enough"
-                if abs(qwen_data['timestamp'] - timestamp) > 1.0: # e.g., if more than 1 second away
-                    qwen_data = None # Discard if not close enough
-
             # Multimodal LLM analysis
-            print(f"🧠 Performing LLM analysis for frame at {timestamp:.2f}s. Frame path: {temp_frame_path}...")
-            prompt = f"Describe the image at {timestamp:.2f}s. Be concise and factual. Identify the content type and hook potential."
+            print(f"🧠 Performing LLM analysis for frame at {timestamp:.2f}s. Frame path: {temp_frame_path}...\n")
+            # Refined prompt for conciseness: Emphasize very short descriptions
+            prompt = f"Describe the image at {timestamp:.2f}s in 5-10 words. Focus on key visual elements, people, and their actions. Identify the content type (e.g., discussion, demo, presentation) and hook potential (1-10)."
             
             analysis_result: ImageAnalysisResult # Declare type hint
             try:
                 analysis_result = describe_image(temp_frame_path, prompt)
-                print(f"✨ Extracted structured analysis for frame at {timestamp:.2f}s: {analysis_result.model_dump_json(indent=2)}")
+                print(f"✨ Extracted structured analysis for frame at {timestamp:.2f}s: {analysis_result.model_dump_json(indent=2)}\n")
             except Exception as e:
                 self.log_error(f"LLM analysis failed for frame at {timestamp:.2f}s: {e}. Appending empty analysis and continuing.")
                 analysis_result = ImageAnalysisResult(scene_description="N/A", content_type="unknown", hook_potential=0) # Fallback
@@ -149,7 +141,7 @@ class StoryboardingAgent(Agent):
                 "description": analysis_result.scene_description,
                 "content_type": analysis_result.content_type,
                 "hook_potential": analysis_result.hook_potential,
-                "qwen_data": qwen_data
+                # Removed qwen_data to reduce token count
             })
 
         # Sort the storyboard by timestamp

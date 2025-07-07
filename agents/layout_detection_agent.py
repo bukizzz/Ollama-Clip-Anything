@@ -22,7 +22,6 @@ class LayoutDetectionAgent(Agent):
 
     def execute(self, context):
         video_path = context.get('processed_video_path')
-        # Modified check to use face_detector instead of face_cascade
         if not video_path or self.face_detector.empty():
             self.log_error("Processed video path not found in context or face detector not loaded.")
             set_stage_status('layout_detection', 'failed', {'reason': 'Missing video path or detector'})
@@ -36,50 +35,40 @@ class LayoutDetectionAgent(Agent):
             if not cap.isOpened():
                 raise IOError(f"Could not open video file: {video_path}")
 
-            layout_analysis_results = []
-            prev_num_faces = 0
+            layout_segments = []
+            current_layout_type = None
+            current_num_faces = -1
+            segment_start_time = 0.0
             confidence_threshold = 0.9 # Confidence threshold for face detection
 
+            frame_count = 0
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
 
                 h, w, _ = frame.shape
-                # Preprocess frame for YuNet
                 blob = cv2.dnn.blobFromImage(frame, 1.0, self.input_size, (0, 0, 0), swapRB=True, crop=False)
                 self.face_detector.setInput(blob)
-
-                # Inference
                 detections = self.face_detector.forward()
 
-                # Post-process detections
                 faces = []
-                # detections is typically a 1xNx15 array, where N is the number of detections
-                # Each detection is [batch_id, class_id, score, x1, y1, x2, y2, ...]
-                # Corrected loop and indexing for 3-dimensional array (1, N, 15)
-                for i in range(detections.shape[1]): # Iterate over N (number of detections)
-                    confidence = detections[0, i, 2] # Accessing score
+                for i in range(detections.shape[1]):
+                    confidence = detections[0, i, 2]
                     if confidence > confidence_threshold:
-                        # Extract bounding box coordinates (x1, y1, x2, y2)
                         x1 = int(detections[0, i, 3] * w)
                         y1 = int(detections[0, i, 4] * h)
                         x2 = int(detections[0, i, 5] * w)
                         y2 = int(detections[0, i, 6] * h)
-                        faces.append([x1, y1, x2 - x1, y2 - y1]) # Convert to x, y, w, h format if needed
+                        faces.append([x1, y1, x2 - x1, y2 - y1])
 
                 num_faces = len(faces)
-
                 timestamp_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-                # Detect screen sharing (simple heuristic: if no faces and high visual complexity/static content)
-                # This is a very basic placeholder and would need more sophisticated logic
                 is_screen_share = False
-                if num_faces == 0 and timestamp_sec > 5: # After initial few seconds
-                    # More advanced screen share detection would involve analyzing image entropy, text detection, etc.
+                if num_faces == 0 and timestamp_sec > 5:
                     is_screen_share = True 
 
-                # Classify layout types
                 layout_type = "unknown"
                 if num_faces == 0 and is_screen_share:
                     layout_type = "presentation_mode"
@@ -88,24 +77,35 @@ class LayoutDetectionAgent(Agent):
                 elif num_faces > 1:
                     layout_type = "multi_person"
                 
-                # Detect speaker transitions and layout changes
-                layout_change = False
-                if num_faces != prev_num_faces:
-                    layout_change = True
+                # Check for layout change
+                if layout_type != current_layout_type or num_faces != current_num_faces:
+                    if current_layout_type is not None: # Not the very first frame
+                        layout_segments.append({
+                            'start_time': segment_start_time,
+                            'end_time': timestamp_sec, # End at the current frame's timestamp
+                            'layout_type': current_layout_type,
+                            'num_faces': current_num_faces
+                        })
+                    # Start new segment
+                    segment_start_time = timestamp_sec
+                    current_layout_type = layout_type
+                    current_num_faces = num_faces
+                
+                frame_count += 1
 
-                layout_analysis_results.append({
-                    'timestamp': timestamp_sec,
-                    'num_faces': num_faces,
-                    'is_screen_share': is_screen_share,
-                    'layout_type': layout_type,
-                    'layout_change': layout_change
+            # Add the last segment after the loop finishes
+            if current_layout_type is not None:
+                layout_segments.append({
+                    'start_time': segment_start_time,
+                    'end_time': cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0, # End at video's total duration
+                    'layout_type': current_layout_type,
+                    'num_faces': current_num_faces
                 })
-                prev_num_faces = num_faces
 
             cap.release()
-            context['layout_detection_results'] = layout_analysis_results
+            context['layout_detection_results'] = layout_segments
             print("✅ Layout detection complete.")
-            set_stage_status('layout_detection_complete', 'complete', {'num_frames_analyzed': len(layout_analysis_results)})
+            set_stage_status('layout_detection_complete', 'complete', {'num_layout_segments': len(layout_segments)})
             return context
 
         except Exception as e:

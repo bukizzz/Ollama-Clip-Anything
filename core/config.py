@@ -40,6 +40,20 @@ class Config:
                 return default
         return val
 
+    def set(self, key: str, value: Any):
+        """Sets a configuration value by key and persists the change."""
+        keys = key.split('.')
+        d = self._config_data
+        for i, k in enumerate(keys):
+            if i == len(keys) - 1:
+                d[k] = value
+            else:
+                if k not in d or not isinstance(d[k], dict):
+                    d[k] = {}
+                d = d[k]
+        self._save_config()
+        self._load_config() # Reload to ensure in-memory is consistent
+
     def update_llm_active_model(self, config_key: str):
         """
         Switches the current_active_model for a given LLM model type

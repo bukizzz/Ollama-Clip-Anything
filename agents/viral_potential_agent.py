@@ -60,7 +60,18 @@ class ViralPotentialAgent(Agent):
                 prompt = f"""
                 A video clip from {start:.2f}s to {end:.2f}s has a viral potential score of {viral_score:.2f}/10.
                 Content: "{clip['clip_description']}"
-                Provide a brief, actionable recommendation to enhance its virality.
+                
+                Additional context for virality assessment:
+                - Average Engagement Score: {avg_engagement:.2f}
+                - Hook/Quotability Score: {hook_score:.2f}
+                - Dominant Audio Sentiment: {sentiment} (Score: {sentiment_score:.2f})
+                
+                Provide a brief, actionable recommendation to enhance its virality, considering the above context.
+                
+                Your response MUST be a JSON object matching the following Pydantic schema:
+                {{
+                    "recommendation": "string"
+                }}
                 """
                 try:
                     recommendation_obj = llm_interaction.robust_llm_json_extraction(

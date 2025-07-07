@@ -216,8 +216,8 @@ def main(args: dict):
             LayoutDetectionAgent(config, state_manager),
             SpeakerTrackingAgent(config, state_manager),
             HookIdentificationAgent(config, state_manager),
-            LLMVideoDirectorAgent(config, state_manager), # Moved before ContentAlignmentAgent
-            ContentAlignmentAgent(config, state_manager),
+            ContentAlignmentAgent(config, state_manager), # Moved before LLMVideoDirectorAgent
+            LLMVideoDirectorAgent(config, state_manager), 
             ViralPotentialAgent(config, state_manager),
             DynamicEditingAgent(config, state_manager),
             MusicSyncAgent(config, state_manager),

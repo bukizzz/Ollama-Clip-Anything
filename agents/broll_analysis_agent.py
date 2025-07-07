@@ -1,5 +1,5 @@
 from agents.base_agent import Agent
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import os
 import json
 import hashlib
@@ -7,7 +7,8 @@ from datetime import datetime
 from PIL import Image
 from llm import llm_interaction
 from core.state_manager import set_stage_status
-from llm.image_analysis import describe_image
+from llm.image_analysis import describe_image, ImageAnalysisResult # Import ImageAnalysisResult
+from llm.llm_interaction import SuggestionsResponse # Import the new model
 
 class BrollAnalysisAgent(Agent):
     def __init__(self, config, state_manager):
@@ -46,6 +47,10 @@ class BrollAnalysisAgent(Agent):
         # Generate suggestions for clips
         suggestions = []
         for clip in clips:
+            # Ensure clip is a dictionary before processing
+            if not isinstance(clip, dict):
+                self.log_warning(f"Skipping non-dictionary clip in B-roll analysis: {clip}")
+                continue
             suggestions.extend(self._generate_suggestions_for_clip(clip, b_roll_assets, audio_rhythm))
         
         context['b_roll_suggestions'] = suggestions
@@ -151,7 +156,7 @@ class BrollAnalysisAgent(Agent):
         
         return sorted(image_files)
 
-    def _process_single_asset(self, file_path: str) -> Dict[str, Any]:
+    def _process_single_asset(self, file_path: str) -> Optional[Dict[str, Any]]:
         """Process a single asset and extract comprehensive metadata."""
         try:
             # Basic file info
@@ -251,11 +256,12 @@ Keep it concise and useful for video editing context."""
             print(f"🧠 Generating description for {os.path.basename(file_path)}")
             
             # Use existing image analysis infrastructure
-            with Image.open(file_path) as img:
-                description = describe_image(img, prompt)
+            image_analysis_result: ImageAnalysisResult = describe_image(file_path, prompt)
+            
+            # ImageAnalysisResult is guaranteed to have scene_description, even if empty or error message
+            description = image_analysis_result.scene_description
             
             # Clean up the response
-            description = description.strip()
             if len(description) > 200:
                 description = description[:200] + "..."
             
@@ -263,7 +269,7 @@ Keep it concise and useful for video editing context."""
             
         except Exception as e:
             print(f"⚠️ Error generating description: {e}")
-            return f"Image file: {os.path.basename(file_path)}"
+            return f"Image file: {os.path.basename(file_path)} (Error: {e})" # Include error for better debugging
 
     def _extract_tags_from_description(self, description: str) -> List[str]:
         """Extract simple tags from description using keyword matching."""
@@ -293,7 +299,8 @@ Keep it concise and useful for video editing context."""
 
     def _generate_suggestions_for_clip(self, clip: Dict[str, Any], b_roll_assets: List[Dict[str, Any]], audio_rhythm: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate B-roll suggestions for a specific clip."""
-        clip_text = clip.get('text', '')
+        clip_description_value = clip.get('clip_description')
+        clip_text = str(clip_description_value) if clip_description_value is not None else ''
         
         # Create a simplified asset list for the LLM
         asset_summaries = []
@@ -305,7 +312,7 @@ Keep it concise and useful for video editing context."""
                 'resolution': asset['resolution']
             }
             asset_summaries.append(summary)
-        
+
         prompt = f"""Based on the clip text: "{clip_text}"
 
 Suggest 2-3 relevant B-roll images from the available assets. Consider the content and mood.
@@ -328,7 +335,17 @@ Keep suggestions practical and relevant."""
         print(f"🎯 Generating suggestions for: {clip_text[:50]}...")
         
         try:
-            response = llm_interaction.llm_pass(self.llm_model, [{"role": "user", "content": prompt}])
+            system_prompt_suggestions = """
+You are an AI assistant that provides B-roll suggestions.
+You MUST respond with ONLY the suggestions formatted as specified. No other text or markdown.
+"""
+            response_model = llm_interaction.robust_llm_json_extraction(
+                system_prompt=system_prompt_suggestions,
+                user_prompt=prompt,
+                output_schema=SuggestionsResponse, # Use the new schema
+                raw_output_mode=True # Get raw text response
+            )
+            response = response_model.suggestions_text # Access the raw text from the Pydantic model
             suggestions = self._parse_suggestions_from_response(response, b_roll_assets)
             return suggestions
             
@@ -357,21 +374,24 @@ Keep suggestions practical and relevant."""
                     reason = parts[3]
                     
                     # Find the matching asset
-                    if filename in filename_to_asset:
-                        asset = filename_to_asset[filename]
+                    asset = filename_to_asset.get(filename) # Use .get() to safely retrieve asset
+                    if asset: # Check if asset was found
                         suggestion = {
-                            'b_roll_path': asset['path'],
+                            'b_roll_path': asset.get('path'), # Use .get() for safety
                             'filename': filename,
                             'start_time': start_time,
                             'duration': duration,
                             'reason': reason,
-                            'resolution': asset['resolution'],
-                            'description': asset['description']
+                            'resolution': asset.get('resolution'), # Use .get() for safety
+                            'description': asset.get('description') # Use .get() for safety
                         }
                         suggestions.append(suggestion)
                         
-            except (ValueError, IndexError):
-                # Skip malformed lines
+            except (ValueError, IndexError) as e: # Catch specific errors
+                self.log_warning(f"Malformed suggestion line skipped: '{line}' - Error: {e}")
+                continue
+            except Exception as e: # Catch any other unexpected errors
+                self.log_error(f"Unexpected error parsing suggestion line: '{line}' - Error: {e}")
                 continue
         
         return suggestions
