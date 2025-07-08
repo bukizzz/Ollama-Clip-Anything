@@ -118,8 +118,7 @@ class FrameProcessor:
         logger.info(f"Selected {len(selected_frames_info)} smart frames.")
         return selected_frames_info
 
-    def process_frame(self, get_frame: Callable[[float], np.ndarray], t: float, layout_info: dict, engagement_metrics: Optional[List[Dict]] = None) -> np.ndarray:
-        frame = get_frame(t).copy()
+    def process_frame(self, frame: np.ndarray, t: float, layout_info: dict, engagement_metrics: Optional[List[Dict]] = None) -> np.ndarray:
         
         # Ensure current_layout is always a string
         recommended_layout_val = layout_info.get('recommended_layout')

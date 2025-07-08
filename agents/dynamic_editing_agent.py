@@ -25,12 +25,17 @@ class DynamicEditingAgent(Agent):
         try:
             editing_decisions = []
             for clip in clips:
-                # Clips from ContentDirectorAgent have 'start_time' and 'end_time'
-                start = clip.get('start_time')
-                end = clip.get('end_time')
+                scenes = clip.get('scenes')
+                if not scenes:
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has no scenes. Skipping.")
+                    continue
+
+                # A clip's start is the start of its first scene, and its end is the end of its last scene.
+                start = scenes[0].get('start_time')
+                end = scenes[-1].get('end_time')
 
                 if start is None or end is None:
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping.")
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has scenes with missing start/end times. Skipping.")
                     continue
                 
                 # Optimal cut points from LLM Director

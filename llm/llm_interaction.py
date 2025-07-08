@@ -160,6 +160,12 @@ def clean_numerical_value(text: str) -> float:
     """
     Robustly extracts a float value from a string, removing common hallucinated words/units.
     """
+    # Ensure text is a string before processing
+    if not isinstance(text, str):
+        if isinstance(text, (int, float)):
+            return float(text)
+        raise TypeError(f"Expected string, int, or float for clean_numerical_value, got {type(text)}")
+
     # Remove common hallucinated words/units
     cleaned_text = re.sub(HALLYUCINATED_UNITS, '', text, flags=re.IGNORECASE).strip()
     
@@ -778,17 +784,41 @@ def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_sche
                         clip_data['scenes'].sort(key=lambda s: s.get('start_time', 0))
 
                         for j, scene in enumerate(clip_data['scenes']):
-                            start_time = scene.get('start_time')
-                            end_time = scene.get('end_time')
-
-                            if not isinstance(start_time, (int, float)) or \
-                               not isinstance(end_time, (int, float)):
-                                error_logger.warning(f"Scene {j} in clip {i} has non-numeric times: start={start_time}, end={end_time}. Skipping scene.")
+                            # Robustly clean start_time and end_time
+                            try:
+                                cleaned_start_time = clean_numerical_value(str(scene.get('start_time')))
+                            except (ValueError, TypeError) as e:
+                                error_logger.warning(f"Scene {j} in clip {i} has invalid start_time '{scene.get('start_time')}': {e}. Skipping scene.")
+                                continue
+                            
+                            cleaned_end_time = None
+                            if 'end_time' in scene and scene['end_time'] is not None:
+                                try:
+                                    cleaned_end_time = clean_numerical_value(str(scene['end_time']))
+                                except (ValueError, TypeError) as e:
+                                    error_logger.warning(f"Scene {j} in clip {i} has invalid end_time '{scene.get('end_time')}': {e}. Attempting to derive from scene_duration.")
+                            
+                            # If end_time is still problematic, try to derive it from scene_duration
+                            if cleaned_end_time is None and 'scene_duration' in scene and scene['scene_duration'] is not None:
+                                try:
+                                    cleaned_scene_duration = clean_numerical_value(str(scene['scene_duration']))
+                                    cleaned_end_time = cleaned_start_time + cleaned_scene_duration
+                                    llm_logger.info(f"Derived end_time for scene {j} in clip {i}: {cleaned_end_time:.2f}s (from start_time + scene_duration).")
+                                except (ValueError, TypeError) as e:
+                                    error_logger.warning(f"Scene {j} in clip {i} has invalid scene_duration '{scene.get('scene_duration')}': {e}. Cannot derive end_time. Skipping scene.")
+                                    continue
+                            
+                            if cleaned_end_time is None:
+                                error_logger.warning(f"Scene {j} in clip {i} has no valid end_time and cannot be derived. Skipping scene.")
                                 continue
 
+                            # Update scene with cleaned times
+                            scene['start_time'] = cleaned_start_time
+                            scene['end_time'] = cleaned_end_time
+                            
                             # Enforce minimum duration (e.g., 2 seconds as per prompt requirement)
-                            if end_time - start_time < 2.0 - 1e-6: # Allow for floating point inaccuracies
-                                error_logger.warning(f"Scene {j} in clip {i} has duration less than 2 seconds ({end_time - start_time:.2f}s). Skipping scene.")
+                            if cleaned_end_time - cleaned_start_time < 2.0 - 1e-6: # Allow for floating point inaccuracies
+                                error_logger.warning(f"Scene {j} in clip {i} has duration less than 2 seconds ({cleaned_end_time - cleaned_start_time:.2f}s). Skipping scene.")
                                 continue
                             
                             valid_scenes.append(scene)

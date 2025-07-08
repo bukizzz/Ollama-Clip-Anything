@@ -1,6 +1,6 @@
 import os
 from agents.base_agent import Agent
-from typing import Dict, Any
+from typing import Dict, Any, cast
 from core.state_manager import set_stage_status
 from video import video_editing
 
@@ -67,11 +67,12 @@ class VideoProductionAgent(Agent):
             # Use multimodal_analysis_results for video_analysis
             multimodal_analysis = context.get("current_analysis", {}).get("multimodal_analysis_results")
             
-            # Use consolidated layout_speaker_analysis_results
-            layout_speaker_results = context.get("current_analysis", {}).get("layout_speaker_analysis_results")
+            # Directly access layout_detection_results and speaker_tracking_results
+            layout_detection_results = context.get("current_analysis", {}).get("layout_detection_results")
+            speaker_tracking_results = context.get("current_analysis", {}).get("speaker_tracking_results")
 
             # Ensure critical inputs are available for video editing
-            if not all([processed_video_path, clips, transcription, video_info, processing_settings, multimodal_analysis, layout_speaker_results]):
+            if not all([processed_video_path, clips, transcription, video_info, processing_settings, multimodal_analysis, layout_detection_results, speaker_tracking_results]):
                 missing_data = []
                 if not processed_video_path:
                     missing_data.append("processed_video_path")
@@ -85,9 +86,14 @@ class VideoProductionAgent(Agent):
                     missing_data.append("processing_settings")
                 if not multimodal_analysis:
                     missing_data.append("multimodal_analysis_results")
-                if not layout_speaker_results:
-                    missing_data.append("layout_speaker_analysis_results")
+                if not layout_detection_results:
+                    missing_data.append("layout_detection_results")
+                if not speaker_tracking_results:
+                    missing_data.append("speaker_tracking_results")
                 raise RuntimeError(f"Missing critical data for video editing: {', '.join(missing_data)}")
+
+            # Assert that processed_video_path is not None for type checker
+            assert processed_video_path is not None, "processed_video_path should not be None at this point."
 
             # Initialize processing_report and created_clips
             created_clips = []
@@ -107,7 +113,7 @@ class VideoProductionAgent(Agent):
                 video_analysis=multimodal_analysis, # Pass multimodal_analysis_results
                 audio_rhythm_data=context.get('current_analysis', {}).get('audio_analysis_results', {}).get('audio_rhythm_data', {}), # From audio_intelligence_agent
                 llm_cut_decisions=context.get("current_analysis", {}).get("llm_cut_decisions", []), # From content_director_agent
-                speaker_tracking_results=layout_speaker_results.get('speaker_tracking_results', {}), # From layout_speaker_agent
+                speaker_tracking_results=speaker_tracking_results, # Pass directly
                 output_dir=self.config.get('output_dir')
             )
             context['created_clips'] = created_clips
@@ -151,7 +157,7 @@ class VideoProductionAgent(Agent):
                 qa_report['subtitle_accuracy'] = {"status": "fail", "details": "No subtitles generated."}
 
             # Example check: Layout consistency (conceptual)
-            if not layout_speaker_results.get('layout_detection_results'):
+            if not layout_detection_results: # Check directly
                 qa_report['layout_consistency'] = {"status": "warn", "details": "Layout detection data not available."}
 
             # Update overall status

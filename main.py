@@ -111,7 +111,12 @@ def _get_default_state(args: dict) -> dict:
         "user_prompt": args.get("user_prompt"),
         "args": args,
         "pipeline_stages": {},
-        "metadata": {}
+        "metadata": {
+            "processing_settings": {
+                "frame_analysis_rate": config.get('qwen_vision.frame_extraction_rate_fps', 1),
+                "frame_extraction_rate": config.get('qwen_vision.frame_extraction_rate_fps', 1)
+            }
+        }
     }
 
 def _log_troubleshooting_tips():
@@ -182,8 +187,19 @@ def main(args: dict):
         
         if state.get("frame_analysis_rate") is not None:
             state["frame_extraction_rate"] = 1.0 / state["frame_analysis_rate"]
+            # Update processing_settings in metadata
+            state.setdefault("metadata", {})
+            state["metadata"].setdefault("processing_settings", {})
+            state["metadata"]["processing_settings"]["frame_analysis_rate"] = state["frame_analysis_rate"]
+            state["metadata"]["processing_settings"]["frame_extraction_rate"] = state["frame_extraction_rate"]
         else:
             state["frame_extraction_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1)
+            # Update processing_settings in metadata with default
+            state.setdefault("metadata", {})
+            state["metadata"].setdefault("processing_settings", {})
+            state["metadata"]["processing_settings"]["frame_analysis_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1)
+            state["metadata"]["processing_settings"]["frame_extraction_rate"] = state["frame_extraction_rate"]
+
 
         user_prompt_arg = args.get("user_prompt")
         if user_prompt_arg:

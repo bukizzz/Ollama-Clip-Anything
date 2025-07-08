@@ -45,16 +45,21 @@ def create_enhanced_individual_clip(
         raise ValueError("Clip data must contain a 'scenes' list.")
 
     # Determine overall clip start and end times from the first and last scenes
-    clip_start_time = scenes[0]['start_time']
-    clip_end_time = scenes[-1]['end_time']
+    clip_start_time = scenes[0].get('start_time')
+    clip_end_time = scenes[-1].get('end_time')
     
     print(f"Creating enhanced clip {clip_number}: {clip_start_time:.1f}s - {clip_end_time:.1f}s (composed of {len(scenes)} scenes)")
 
     try:
         final_clip_segments = []
         for i, scene in enumerate(scenes):
-            scene_start = scene['start_time']
-            scene_end = scene['end_time']
+            scene_start = scene.get('start_time')
+            scene_end = scene.get('end_time')
+            
+            if scene_start is None or scene_end is None:
+                print(f"  - Skipping scene {i+1}/{len(scenes)} due to missing start or end time.")
+                continue
+
             print(f"  - Processing scene {i+1}/{len(scenes)}: {scene_start:.1f}s - {scene_end:.1f}s")
 
             # Extract subclip for the current scene
@@ -76,8 +81,8 @@ def create_enhanced_individual_clip(
             frame_processor = FrameProcessor(video_info['width'], video_info['height'], video_info['width'], video_info['height'], tracking_manager.get_face_tracker(), tracking_manager.get_object_tracker())
             engagement_metrics = video_analysis.get('engagement_metrics', [])
 
-            def dynamic_frame_modifier(t):
-                frame = subclip.get_frame(t)
+            def dynamic_frame_modifier(gf, t):
+                frame = gf(t)
                 layout_info = {'recommended_layout': 'single_person_focus', 'active_speaker': None} # Placeholder, ideally from layout_optimization_recommendations
                 return frame_processor.process_frame(frame, t, layout_info, engagement_metrics)
 
@@ -102,9 +107,18 @@ def create_enhanced_individual_clip(
         ]
         create_ass_file(clip_transcript, ass_path, time_offset=int(clip_start_time), video_height=video_info['height'])
 
+        video_encoder = processing_settings.get("video_encoder")
+        available_encoders = ['libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc'] # Add more as needed
+        if video_encoder not in available_encoders:
+            print(f"Warning: Video encoder '{video_encoder}' not in available encoders. Falling back to 'libx264'.")
+            video_encoder = 'libx264'
+
         ffmpeg_params = list(config.get('ffmpeg_global_params'))
-        ffmpeg_params.extend(processing_settings.get("ffmpeg_encoder_params", {}).get(processing_settings.get("video_encoder"), []))
+        ffmpeg_params.extend(processing_settings.get("ffmpeg_encoder_params", {}).get(video_encoder, []))
         ffmpeg_params.extend(['-vf', f"subtitles={ass_path}"])
+
+        print(f"DEBUG: Using ffmpeg_params: {ffmpeg_params}")
+        print(f"DEBUG: Using video_encoder: {video_encoder}")
 
         final_clip.write_videofile(
             output_path,

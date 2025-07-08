@@ -8,10 +8,8 @@ class LayoutOptimizationAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
-        # Updated paths to retrieve data from the hierarchical context
-        layout_speaker_analysis = context.get('current_analysis', {}).get('layout_speaker_analysis_results', {})
-        layout_detection = layout_speaker_analysis.get('layout_detection', [])
-        speaker_tracking = layout_speaker_analysis.get('speaker_tracking', {})
+        layout_detection = context.get('current_analysis', {}).get('layout_detection_results', [])
+        speaker_tracking = context.get('current_analysis', {}).get('speaker_tracking_results', {})
         clips = context.get('current_analysis', {}).get('clips', [])
 
         if not layout_detection or not clips:
@@ -25,21 +23,30 @@ class LayoutOptimizationAgent(Agent):
         try:
             layout_recommendations = []
             for clip in clips:
-                # Clips from ContentDirectorAgent have 'start_time' and 'end_time' directly
-                start = clip.get('start_time')
-                end = clip.get('end_time')
+                scenes = clip.get('scenes')
+                if not scenes:
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has no scenes. Skipping.")
+                    continue
+
+                # A clip's start is the start of its first scene, and its end is the end of its last scene.
+                start = scenes[0].get('start_time')
+                end = scenes[-1].get('end_time')
 
                 if start is None or end is None:
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping.")
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has scenes with missing start/end times. Skipping.")
                     continue
                 
                 # Analyze layout for this clip's duration
-                clip_layouts = [item for item in layout_detection if start <= item['timestamp'] <= end]
+                clip_layouts = [
+                    item for item in layout_detection 
+                    if item['start_time'] < end and item['end_time'] > start
+                ]
                 
                 num_faces = [item['num_faces'] for item in clip_layouts]
                 avg_faces = sum(num_faces) / len(num_faces) if num_faces else 0
                 
-                is_presentation = any(item['is_screen_share'] for item in clip_layouts)
+                # Screen share detection is not available in layout_detection, so this is removed.
+                is_presentation = False 
                 
                 # Determine optimal layout
                 if is_presentation:

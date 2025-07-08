@@ -29,12 +29,17 @@ class ViralPotentialAgent(Agent):
             recommendation_contexts = []
 
             for clip in clips:
-                # Clips from ContentDirectorAgent have 'start_time' and 'end_time'
-                start = clip.get('start_time')
-                end = clip.get('end_time')
+                scenes = clip.get('scenes')
+                if not scenes:
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has no scenes. Skipping.")
+                    continue
+
+                # A clip's start is the start of its first scene, and its end is the end of its last scene.
+                start = scenes[0].get('start_time')
+                end = scenes[-1].get('end_time')
 
                 if start is None or end is None:
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping.")
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has scenes with missing start/end times. Skipping.")
                     continue
                 
                 # Use 'score' key for engagement results as per MultimodalAnalysisAgent's output
@@ -79,7 +84,7 @@ class ViralPotentialAgent(Agent):
             else:
                 self.log_warning("No valid clips to generate recommendations for.")
 
-            context['clips'] = sorted(scored_clips, key=lambda x: x['viral_potential_score'], reverse=True)
+            context['current_analysis']['clips'] = sorted(scored_clips, key=lambda x: x['viral_potential_score'], reverse=True)
             print("✅ Viral potential assessment complete.")
             set_stage_status('viral_potential_scoring_complete', 'complete', {'num_clips_scored': len(scored_clips)})
             return context

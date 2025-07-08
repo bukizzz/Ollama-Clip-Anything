@@ -41,12 +41,17 @@ class SubtitleAnimationAgent(Agent):
 
             animated_subtitle_paths = []
             for i, clip in enumerate(clips, 1):
-                # Clips from ContentDirectorAgent have 'start_time' and 'end_time' directly
-                start = clip.get('start_time')
-                end = clip.get('end_time')
+                scenes = clip.get('scenes')
+                if not scenes:
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has no scenes. Skipping subtitle generation.")
+                    continue
+
+                # A clip's start is the start of its first scene, and its end is the end of its last scene.
+                start = scenes[0].get('start_time')
+                end = scenes[-1].get('end_time')
 
                 if start is None or end is None:
-                    self.log_warning(f"Clip {clip.get('clip_description', 'N/A')} has missing start/end times. Skipping subtitle generation for this clip.")
+                    self.log_warning(f"Clip '{clip.get('clip_description', 'N/A')}' has scenes with missing start/end times. Skipping subtitle generation for this clip.")
                     continue
                 
                 clip_transcript = [seg for seg in transcription if start <= seg['start'] < end]

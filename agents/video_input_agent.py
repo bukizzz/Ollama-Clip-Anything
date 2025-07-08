@@ -53,15 +53,21 @@ class VideoInputAgent(Agent):
                 # Get video info using utils.get_video_info after download/selection
                 video_info, _ = utils.get_video_info(processed_video_path)
 
+                # Populate metadata, including processing settings from config
+                context['metadata'] = {
+                    'video_info': video_info,
+                    'processing_settings': {
+                        "video_encoder": self.config.get('video_encoder'),
+                        "ffmpeg_encoder_params": self.config.get('ffmpeg_encoder_params')
+                    }
+                }
+                context['processed_video_path'] = processed_video_path
+                context['current_stage'] = "video_input_complete"
+                context['temp_files'] = {"processed_video": processed_video_path}
             except Exception as e:
                 print(f"❌ Failed to get video input or validate: {e}")
                 context["pipeline_stages"]["video_input_complete"] = {"status": "failed", "details": {"reason": str(e)}}
                 return context
-            
-            context['metadata']['video_info'] = video_info
-            context['processed_video_path'] = processed_video_path
-            context['current_stage'] = "video_input_complete"
-            context['temp_files'] = {"processed_video": processed_video_path}
         else:
             print(f"â Š Skipping video input. Loaded from state: {processed_video_path}")
             
