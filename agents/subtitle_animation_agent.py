@@ -11,6 +11,15 @@ class SubtitleAnimationAgent(Agent):
         self.subtitle_animation_config = agent_config.get('subtitle_animation', {})
 
     def execute(self, context):
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If animated subtitle paths already exist in the context, skip this stage.
+        if context.get('animated_subtitle_paths') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Animated subtitles already generated.")
+            return context
+
         # Updated paths to retrieve data from the hierarchical context
         transcription = context.get('archived_data', {}).get('full_transcription', [])
         video_info = context.get('metadata', {}).get('video_info')

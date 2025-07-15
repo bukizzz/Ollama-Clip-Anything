@@ -12,7 +12,8 @@ def create_ass_file(
     timestamps: List[Dict], 
     output_path: str, 
     time_offset: int = 0, 
-    video_height: int = 1080, 
+    video_height: int = 1080,
+    video_width: int = 1920, # New parameter for video width
     layout: str = 'default',
     speaker_colors: Optional[Dict[str, str]] = None,
     is_vertical: bool = False
@@ -62,8 +63,9 @@ def create_ass_file(
                     end = start + 0.2 # Min duration for readability
 
                 # Positioning and animation
+                pos_x = video_width // 2 # Center horizontally
                 pos_y = video_height * (0.8 if not is_vertical else 0.7)
-                tags = f"{{\an5\pos(960, {pos_y})}}" # Centered, adjustable Y
+                tags = f"{{\an5\pos({pos_x}, {pos_y})}}" # Centered, adjustable Y
                 if config.get('subtitle_animation.word_by_word_timing_enabled'):
                     tags += "\fad(150,150)"
                 if config.get('subtitle_animation.emphasis_effects_enabled') and word.get('emphasis'):
@@ -72,13 +74,17 @@ def create_ass_file(
                 f.write(f"Dialogue: 0,{format_time(start)},{format_time(end)},{style},,0,0,0,,{tags}{text}\n")
                 last_word_end = end
 
-def generate_subtitles_efficiently(transcription: List[Dict], output_dir: str, clip_name: str, video_height: int) -> str:
+def generate_subtitles_efficiently(transcription: List[Dict], output_dir: str, clip_name: str, video_height: int, video_width: int) -> str:
     """
     Generates ASS subtitle file for a given clip, optimizing for efficiency.
     """
     import os
 
+    if not transcription:
+        print(f"Warning: No transcription provided for clip {clip_name}. Skipping subtitle generation.")
+        return "" # Return empty string if no transcription
+
 
     output_path = os.path.join(output_dir, f"{clip_name}_subtitles.ass")
-    create_ass_file(transcription, output_path, video_height=video_height)
+    create_ass_file(transcription, output_path, video_height=video_height, video_width=video_width)
     return output_path

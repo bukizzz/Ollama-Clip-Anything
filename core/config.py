@@ -91,5 +91,8 @@ class Config:
 # Instantiate the Config class to load settings on import
 config = Config()
 
+# DEBUG: Verify video_encoder value immediately after config loading
+print(f"DEBUG: core/config.py - video_encoder from config: {config.get('video_encoder')}")
+
 # Expose commonly used config values directly for convenience
 CLIP_DURATION_RANGE = (config.get('clip_duration_min'), config.get('clip_duration_max'))

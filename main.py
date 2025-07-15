@@ -44,59 +44,13 @@ if ffmpeg_path:
     os.environ["FFMPEG_BINARY"] = ffmpeg_path
     os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
 
-def _get_frame_analysis_rate(state: dict, state_manager_instance: StateManager):
-    """Interactively prompts the user for the frame analysis rate and updates the state."""
-    options = {
-        0: 1.0,
-        1: 1.0,
-        2: 2.0,
-        3: 3.0,
-        4: 5.0,
-        5: 10.0,
-        6: 15.0,
-        7: 20.0,
-        8: 30.0
-    }
-
-    logging.info("\n🖼️ Choose the rate for frame analysis (in seconds per frame):")
-    for key, value in options.items():
-        if key == 0:
-            logging.info(f"  [{key}] Default ({value:.2f} seconds) - Recommended for initial runs.")
-        else:
-            logging.info(f"  [{key}] {value:.0f} seconds - {'(Faster, less detailed)' if value > 5 else '(Slower, more detailed)'}")
-    logging.info("  [9] Custom")
-
-    while True:
-        try:
-            choice = input("Enter your choice (0-9): ").strip()
-            if choice == '0':
-                seconds_per_frame = options[0]
-            elif choice == '9':
-                custom_spf_str = input("Enter custom seconds per frame: ").strip()
-                custom_spf = float(custom_spf_str)
-                if custom_spf <= 0:
-                    logging.warning("Seconds per frame must be a positive number.")
-                    continue
-                seconds_per_frame = custom_spf
-            elif int(choice) in options:
-                seconds_per_frame = options[int(choice)]
-            else:
-                logging.warning("Invalid choice. Please enter a number between 0 and 9.")
-                continue
-            
-            state["frame_analysis_rate"] = seconds_per_frame
-            state_manager_instance.update_state_file(state)
-            return
-        except ValueError:
-            logging.warning("Invalid input. Please enter a valid number.")
-        except Exception as e:
-            logging.error(f"An error occurred during frame analysis rate selection: {e}")
-            state["frame_analysis_rate"] = options[0]
-            state_manager_instance.update_state_file(state)
-            return
-
 def _get_default_state(args: dict) -> dict:
     """Returns the default state dictionary."""
+    # Determine frame_analysis_rate: prioritize CLI arg, then config, then default
+    frame_analysis_rate = args.get("image_analysis_fps")
+    if frame_analysis_rate is None:
+        frame_analysis_rate = config.get('qwen_vision.frame_extraction_rate_fps', 1)
+
     return {
         "input_source": None,
         "current_stage": "start",
@@ -113,8 +67,9 @@ def _get_default_state(args: dict) -> dict:
         "pipeline_stages": {},
         "metadata": {
             "processing_settings": {
-                "frame_analysis_rate": config.get('qwen_vision.frame_extraction_rate_fps', 1),
-                "frame_extraction_rate": config.get('qwen_vision.frame_extraction_rate_fps', 1)
+                "frame_analysis_rate": frame_analysis_rate,
+                "frame_extraction_rate": 1.0 / frame_analysis_rate if frame_analysis_rate else 1, # Ensure it's not zero
+                "video_encoder": config.get('video_encoder', 'libx264') # Add video_encoder from config
             }
         }
     }
@@ -155,13 +110,24 @@ def main(args: dict):
         # --- Resume Mechanism ---
         state = state_manager_instance._load_state_file()
         
+        # Check if new video input arguments are provided, which should override any previous state
+        new_video_input_provided = args.get("video_path") or args.get("youtube_url")
+
         if args.get("nocache"):
             logging.warning("🗑️ --nocache flag detected. Deleting previous state and temporary files...\n")
             state_manager_instance.delete_state_file()
             temp_manager.cleanup_temp_dir()
             state = None
-        
-        if state:
+        elif new_video_input_provided and state and state.get('processed_video_path') and \
+             (state['args'].get('video_path') != args.get('video_path') or \
+              state['args'].get('youtube_url') != args.get('youtube_url')):
+            # If new video input is provided and it's different from the one in the saved state,
+            # force a fresh start to process the new video.
+            logging.warning("🔄 New video input detected. Deleting previous state and temporary files to process new video...\n")
+            state_manager_instance.delete_state_file()
+            temp_manager.cleanup_temp_dir()
+            state = None
+        elif state:
             if args.get("retry"):
                 logging.info("🔄 --retry flag detected. Attempting to resume previous session...\n")
             else:
@@ -178,27 +144,37 @@ def main(args: dict):
         
         if not state:
             state = _get_default_state(args)
-            state_manager_instance._create_state_file()
+            temp_manager.ensure_temp_dir() # Ensure temp directory exists before creating state file
             state_manager_instance.update_state_file(state)
         
-        # --- Frame Analysis Rate Configuration ---
-        if "frame_analysis_rate" not in state:
-            _get_frame_analysis_rate(state, state_manager_instance)
-        
-        if state.get("frame_analysis_rate") is not None:
-            state["frame_extraction_rate"] = 1.0 / state["frame_analysis_rate"]
-            # Update processing_settings in metadata
-            state.setdefault("metadata", {})
-            state["metadata"].setdefault("processing_settings", {})
-            state["metadata"]["processing_settings"]["frame_analysis_rate"] = state["frame_analysis_rate"]
-            state["metadata"]["processing_settings"]["frame_extraction_rate"] = state["frame_extraction_rate"]
-        else:
-            state["frame_extraction_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1)
-            # Update processing_settings in metadata with default
-            state.setdefault("metadata", {})
-            state["metadata"].setdefault("processing_settings", {})
-            state["metadata"]["processing_settings"]["frame_analysis_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1)
-            state["metadata"]["processing_settings"]["frame_extraction_rate"] = state["frame_extraction_rate"]
+        # Always ensure state['args'] reflects the current command-line arguments
+        state["args"] = args
+        state_manager_instance.update_state_file(state) # Save updated args to state
+
+        # Ensure frame_extraction_rate is set from frame_analysis_rate
+        # This block is now redundant as frame_analysis_rate and frame_extraction_rate are set in _get_default_state
+        # if state.get("frame_analysis_rate"):
+        #     state["frame_extraction_rate"] = 1.0 / state["frame_analysis_rate"]
+        # else:
+        #     # Fallback to default if not set for any reason
+        #     state["frame_extraction_rate"] = config.get('qwen_vision.frame_extraction_rate_fps', 1)
+
+        # Update metadata structure consistently
+        state.setdefault("metadata", {})
+        state["metadata"].setdefault("processing_settings", {})
+        # These values are now set in _get_default_state, but we ensure they are updated if args change
+        state["metadata"]["processing_settings"]["frame_analysis_rate"] = args.get("image_analysis_fps") or config.get('qwen_vision.frame_extraction_rate_fps', 1)
+        state["metadata"]["processing_settings"]["frame_extraction_rate"] = 1.0 / state["metadata"]["processing_settings"]["frame_analysis_rate"] if state["metadata"]["processing_settings"]["frame_analysis_rate"] else 1
+        state["metadata"]["processing_settings"]["video_encoder"] = config.get('video_encoder', 'libx264')
+        # Add video output settings to processing_settings
+        state["metadata"]["processing_settings"]["video_output"] = {
+            "target_resolution_heights": config.get('video_output.target_resolution_heights'),
+            "target_aspect_ratios": config.get('video_output.target_aspect_ratios')
+        }
+        state_manager_instance.update_state_file(state)
+
+        # DEBUG: Check video_encoder after all state updates
+        print(f"DEBUG: main.py - video_encoder in state after all updates: {state.get('metadata', {}).get('processing_settings', {}).get('video_encoder')}")
 
 
         user_prompt_arg = args.get("user_prompt")
@@ -209,13 +185,12 @@ def main(args: dict):
         
         pipeline_agents = [
             VideoInputAgent(config, state_manager_instance),
-            FramePreprocessingAgent(config, state_manager_instance),
             StoryboardingAgent(config, state_manager_instance),
+            MultimodalAnalysisAgent(config, state_manager_instance),
             AudioIntelligenceAgent(config, state_manager_instance),
+            LayoutSpeakerAgent(config, state_manager_instance),
             BrollAnalysisAgent(config, state_manager_instance),
             LLMSelectionAgent(config, state_manager_instance),
-            MultimodalAnalysisAgent(config, state_manager_instance),
-            LayoutSpeakerAgent(config, state_manager_instance),
             HookIdentificationAgent(config, state_manager_instance),
             ContentDirectorAgent(config, state_manager_instance),
             ViralPotentialAgent(config, state_manager_instance),
@@ -229,7 +204,7 @@ def main(args: dict):
 
         agent_manager = AgentManager(config._config_data, state_manager_instance, monitor) # Pass config._config_data
         with tqdm(total=len(pipeline_agents), desc="Processing Pipeline") as pbar:
-            context = agent_manager.run(pipeline_agents, state)
+            context = agent_manager.run(pipeline_agents, state, pbar)
 
         if 'storyboard_data' in context:
             logging.debug(f"DEBUG: Storyboard Data: {context['storyboard_data'][:2]}")

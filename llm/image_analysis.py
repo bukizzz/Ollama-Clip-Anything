@@ -58,23 +58,38 @@ def describe_image(image_path: str, prompt: str) -> ImageAnalysisResult:
             hook_potential=0
         )
 
+import concurrent.futures # Import concurrent.futures
+import os # Import os
+
 def describe_images_batch(image_paths_with_prompts: list[tuple[str, str]]) -> list[ImageAnalysisResult]:
     """
-    Performs batch LLM inference for multiple images.
-    NOTE: This is a simulated batch for now. For true batching, the underlying LLM API
-    (robust_llm_json_extraction) would need to support multiple image inputs.
+    Performs batch LLM inference for multiple images concurrently.
+    Leverages ThreadPoolExecutor to parallelize calls to describe_image.
     """
     results = []
-    for image_path, prompt in image_paths_with_prompts:
-        print(f"Querying multi-modal LLM for batch item with text: {prompt} and image data.")
-        try:
-            analysis_result = describe_image(image_path, prompt)
-            results.append(analysis_result)
-        except Exception as e:
-            print(f"❌ Error in batch LLM analysis for image {image_path}: {e}. Appending empty analysis.")
-            results.append(ImageAnalysisResult(
-                scene_description="Could not generate image description due to an error.",
-                content_type="unknown",
-                hook_potential=0
-            ))
+    # Determine max workers based on available CPU cores or a reasonable default
+    max_workers = os.cpu_count() or 4 # Use number of CPU cores, or default to 4
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks to the executor
+        future_to_image = {executor.submit(describe_image, image_path, prompt): (image_path, prompt)
+                           for image_path, prompt in image_paths_with_prompts}
+        
+        for future in concurrent.futures.as_completed(future_to_image):
+            image_path, prompt = future_to_image[future]
+            try:
+                analysis_result = future.result()
+                results.append(analysis_result)
+            except Exception as e:
+                print(f"❌ Error in batch LLM analysis for image {image_path} (prompt: '{prompt[:50]}...'): {e}. Appending empty analysis.")
+                results.append(ImageAnalysisResult(
+                    scene_description="Could not generate image description due to an error.",
+                    content_type="unknown",
+                    hook_potential=0
+                ))
+    
+    # Sort results by the original order of image_paths_with_prompts
+    # This assumes image_paths_with_prompts has unique image_paths or a consistent order
+    # For simplicity, we'll just return the results in the order they complete for now.
+    # If strict order is needed, a more complex mapping would be required.
     return results

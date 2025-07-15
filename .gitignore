@@ -53,3 +53,12 @@ ISAW.md
 SimSun.ttf
 GEMINI_ANSWERS.md
 .ruff_cache/
+test_video.mp4
+test_output.mp4
+test_output_moviepy.mp4
+test_moviepy.py
+test_moviepy_write.py
+temp_video_enhanced_1TEMP_MPY_wvf_snd.mp4
+simple_test_clip_with_subtitles_1.mp4
+simple_test_clip_with_dynamic_frames_1.mp4
+simple_test_clip_1.mp4

@@ -21,6 +21,7 @@ Pillow
 # Audio/Video processing utilities
 ffmpeg-python==0.2.0
 pydub==0.25.1
+imageio # Added for direct frame writing
 
 ffmpeg-normalize==1.24.0
 # General utilities

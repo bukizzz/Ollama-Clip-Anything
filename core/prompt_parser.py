@@ -27,21 +27,12 @@ def parse_user_prompt(user_prompt: str) -> Dict[str, Any]:
     User Prompt: "{user_prompt}"
 
     Provide your response as a JSON object adhering to the UserPromptParameters schema.
-    """
 
-    try:
-        parsed_data_model = llm_interaction.robust_llm_json_extraction(
-            system_prompt="You are an AI assistant that extracts structured information from user prompts.",
-            user_prompt=llm_prompt.strip(),
-            output_schema=UserPromptParameters
-        )
-        print("✅ User prompt parsed by LLM.")
-        return parsed_data_model.model_dump()
-    except Exception as e:
-        print(f"❌ \033[91mFailed to parse user prompt with LLM: {e}\033[0m")
-        return {
-            "theme": "default",
-            "characters": [],
-            "style": "standard",
-            "keywords": user_prompt.split() # Fallback to simple split
-        }
+    Example of expected JSON output:
+    {{
+        "theme": "technology",
+        "characters": ["speaker", "audience"],
+        "style": "informative",
+        "keywords": ["AI", "future", "innovation"]
+    }}
+    """

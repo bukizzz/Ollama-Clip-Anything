@@ -14,14 +14,16 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO) # Set to INFO to see detailed frame extraction logs
 
 class FrameProcessor:
-    def __init__(self, original_w: int = 0, original_h: int = 0, output_w: int = 0, output_h: int = 0, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None):
+    def __init__(self, original_w: int, original_h: int, output_w: int, output_h: int, face_tracker: Optional[FaceTracker] = None, object_tracker: Optional[ObjectTracker] = None, zoom_events: Optional[List[Dict]] = None):
         self.original_w = original_w
         self.original_h = original_h
         self.output_w = output_w
         self.output_h = output_h
         self.face_tracker = face_tracker
         self.object_tracker = object_tracker
-        self.layout_manager = LayoutManager()
+        self.layout_manager = LayoutManager(output_w, output_h) # Pass output dimensions to LayoutManager
+        if zoom_events:
+            self.layout_manager.set_zoom_events(zoom_events)
         self.last_layout = 'single_person_focus' # Initialize to a default string
         self.transition_progress = -1
 
@@ -118,7 +120,7 @@ class FrameProcessor:
         logger.info(f"Selected {len(selected_frames_info)} smart frames.")
         return selected_frames_info
 
-    def process_frame(self, frame: np.ndarray, t: float, layout_info: dict, engagement_metrics: Optional[List[Dict]] = None) -> np.ndarray:
+    def process_frame(self, frame: np.ndarray, t: float, layout_info: dict) -> np.ndarray:
         
         # Ensure current_layout is always a string
         recommended_layout_val = layout_info.get('recommended_layout')
@@ -143,8 +145,8 @@ class FrameProcessor:
         
         if self.transition_progress >= 0:
             # In transition
-            from_frame = self.layout_manager.apply_layout(frame, self.last_layout, self.output_w, self.output_h, self.face_tracker, self.object_tracker, active_speaker_id, engagement_metrics, t)
-            to_frame = self.layout_manager.apply_layout(frame, current_layout, self.output_w, self.output_h, self.face_tracker, self.object_tracker, active_speaker_id, engagement_metrics, t)
+            from_frame = self.layout_manager.apply_layout(frame, self.last_layout, self.output_w, self.output_h, self.face_tracker, self.object_tracker, active_speaker_id, None, t) # engagement_metrics removed
+            to_frame = self.layout_manager.apply_layout(frame, current_layout, self.output_w, self.output_h, self.face_tracker, self.object_tracker, active_speaker_id, None, t) # engagement_metrics removed
             
             # Simple cross-fade transition
             alpha = self.transition_progress / 10.0 # 10 frames transition
@@ -156,7 +158,7 @@ class FrameProcessor:
                 self.last_layout = current_layout
         else:
             # No transition
-            final_frame = self.layout_manager.apply_layout(frame, current_layout, self.output_w, self.output_h, self.face_tracker, self.object_tracker, active_speaker_id, engagement_metrics, t)
+            final_frame = self.layout_manager.apply_layout(frame, current_layout, self.output_w, self.output_h, self.face_tracker, self.object_tracker, active_speaker_id, None, t) # engagement_metrics removed
             self.last_layout = current_layout
 
         # Add speaker labels
@@ -196,19 +198,28 @@ class FrameProcessor:
                     time.sleep(retry_delay_sec)
                 continue
 
+            # Get video duration
+            video_fps = cap.get(cv2.CAP_PROP_FPS)
+            video_duration_sec = frame_count / video_fps if video_fps > 0 else 0
+
+            # Adjust timestamp if it's out of bounds or too close to the end
+            adjusted_timestamp_sec = timestamp_sec
+            if video_duration_sec > 0 and timestamp_sec >= video_duration_sec:
+                adjusted_timestamp_sec = max(0.0, video_duration_sec - 0.1) # Subtract a small epsilon
+
             # Set position by milliseconds for better precision
-            target_msec = timestamp_sec * 1000
+            target_msec = adjusted_timestamp_sec * 1000
             cap.set(cv2.CAP_PROP_POS_MSEC, target_msec)
             
             # Verify if the position was set correctly
             current_msec_pos = cap.get(cv2.CAP_PROP_POS_MSEC)
-            logger.info(f"Requested timestamp {timestamp_sec:.2f}s ({target_msec:.2f}ms), actual position set to {current_msec_pos:.2f}ms.")
+            logger.info(f"Requested timestamp {timestamp_sec:.2f}s ({timestamp_sec*1000:.2f}ms), adjusted to {adjusted_timestamp_sec:.2f}s ({target_msec:.2f}ms), actual position set to {current_msec_pos:.2f}ms.")
 
             ret, frame = cap.read()
             cap.release()
 
             if ret:
-                temp_frame_path = get_temp_path(f"frame_{int(timestamp_sec * 1000)}.jpg")
+                temp_frame_path = get_temp_path(f"frame_{int(adjusted_timestamp_sec * 1000)}.jpg")
                 try:
                     cv2.imwrite(temp_frame_path, frame)
                     logger.info(f"Successfully extracted and saved frame to {temp_frame_path}")
@@ -218,9 +229,63 @@ class FrameProcessor:
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay_sec)
             else:
-                logger.error(f"Error: Could not read frame at timestamp {timestamp_sec:.2f}s from {video_path} (Attempt {attempt + 1}/{max_retries}). Check if timestamp is out of bounds or video is corrupted.")
+                logger.error(f"Error: Could not read frame at timestamp {adjusted_timestamp_sec:.2f}s from {video_path} (Attempt {attempt + 1}/{max_retries}). Check if timestamp is out of bounds or video is corrupted.")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay_sec)
         
         logger.error(f"Failed to extract frame at timestamp {timestamp_sec:.2f}s after {max_retries} attempts.")
         return None
+
+    def extract_frames_at_rate(self, video_path: str, fps: float) -> List[Dict]:
+        """
+        Extracts frames from a video at a specified frames per second (fps) rate.
+        Returns a list of dictionaries, each containing 'frame_path' and 'timestamp_sec'.
+        """
+        logger.info(f"Starting frame extraction at {fps} FPS for {video_path}")
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"Could not open video file: {video_path}")
+            return []
+
+        video_fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration_sec = total_frames / video_fps
+
+        if total_frames == 0 or video_fps == 0:
+            cap.release()
+            return []
+
+        extracted_frames_info = []
+        current_timestamp_sec = 0.0
+        frame_idx = 0
+
+        while current_timestamp_sec <= duration_sec:
+            # Calculate the frame number for the current timestamp
+            target_frame_number = int(current_timestamp_sec * video_fps)
+            
+            # Ensure we don't go beyond the total frames
+            if target_frame_number >= total_frames:
+                break
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame_number)
+            ret, frame = cap.read()
+
+            if ret:
+                temp_frame_path = get_temp_path(f"extracted_frame_{int(current_timestamp_sec * 1000)}.jpg")
+                try:
+                    cv2.imwrite(temp_frame_path, frame)
+                    extracted_frames_info.append({
+                        'frame_path': temp_frame_path,
+                        'timestamp_sec': current_timestamp_sec
+                    })
+                except Exception as e:
+                    logger.error(f"Error saving extracted frame at {current_timestamp_sec:.2f}s: {e}")
+            else:
+                logger.warning(f"Could not read frame at timestamp {current_timestamp_sec:.2f}s (frame {target_frame_number}).")
+            
+            current_timestamp_sec += (1.0 / fps)
+            frame_idx += 1
+        
+        cap.release()
+        logger.info(f"Finished extracting {len(extracted_frames_info)} frames at {fps} FPS.")
+        return extracted_frames_info

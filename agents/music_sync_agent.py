@@ -21,6 +21,15 @@ class MusicSyncAgent(Agent):
         }
 
     def execute(self, context):
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If music sync results already exist in the context, skip this stage.
+        if context.get('music_sync_results') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Music synchronization already complete.")
+            return context
+
         # Updated paths to retrieve data from the hierarchical context
         audio_analysis_results = context.get('current_analysis', {}).get('audio_analysis_results', {})
         audio_rhythm = audio_analysis_results.get('audio_rhythm', {})

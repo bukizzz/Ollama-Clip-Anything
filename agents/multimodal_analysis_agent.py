@@ -11,6 +11,7 @@ from deepface import DeepFace
 import time
 from llm.llm_interaction import robust_llm_json_extraction
 from llm.image_analysis import ImageAnalysisResult
+from video.frame_processor import FrameProcessor # Import FrameProcessor
 
 class MultimodalAnalysisAgent(Agent):
     """
@@ -222,24 +223,51 @@ class MultimodalAnalysisAgent(Agent):
             }
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If multimodal analysis results already exist in the context, skip this stage.
+        if context.get('current_analysis', {}).get('multimodal_analysis_results') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Multimodal analysis already complete.")
+            return context
+
         # Ensure 'current_analysis' and 'summaries' are dictionaries
         context.setdefault('current_analysis', {})
         context.setdefault('summaries', {})
 
-        # Retrieve frames from archived_data
-        extracted_frames_info = context.get('archived_data', {}).get('raw_frames')
-        
-        if not extracted_frames_info:
-            self.log_error("Extracted frames info missing from archived_data. Cannot perform multimodal analysis.")
-            set_stage_status('multimodal_analysis', 'failed', {'reason': 'Missing extracted_frames_info'})
+        # Ensure 'current_analysis' and 'summaries' are dictionaries
+        context.setdefault('current_analysis', {})
+        context.setdefault('summaries', {})
+
+        processed_video_path = context.get("processed_video_path")
+        video_info = context['metadata'].get("video_info")
+        processing_settings = context.get('metadata', {}).get('processing_settings', {})
+        frame_analysis_rate = processing_settings.get('frame_analysis_rate', 1) # Default to 1 FPS
+
+        if not processed_video_path or not video_info:
+            self.log_error("Video path or info missing. Skipping multimodal analysis.")
+            set_stage_status('multimodal_analysis', 'skipped', {'reason': 'Missing video path or info'})
             return context
 
-        print("👁️ Starting comprehensive multimodal analysis on pre-processed frames...")
+        # Initialize FrameProcessor with actual video dimensions
+        # This is needed for frame extraction within this agent
+        original_w = video_info.get('width')
+        original_h = video_info.get('height')
+        output_w = self.config.get('qwen_vision.output_width', 1280) # Example default
+        output_h = self.config.get('qwen_vision.output_height', 720) # Example default
+        
+        if original_w is None or original_h is None:
+            self.log_error("Original video dimensions missing. Cannot initialize FrameProcessor.")
+            set_stage_status('multimodal_analysis', 'failed', {'reason': 'Missing video dimensions'})
+            return context
+
+        frame_processor = FrameProcessor(original_w, original_h, output_w, output_h)
+
+        print(f"👁️ Starting comprehensive multimodal analysis at {frame_analysis_rate} FPS...")
         set_stage_status('multimodal_analysis', 'running')
 
-        # Ensure processed_video_path is a string for os.path.basename
-        processed_video_path_str = context.get('processed_video_path', '')
-        cache_key = f"multimodal_analysis_{os.path.basename(processed_video_path_str)}"
+        cache_key = f"multimodal_analysis_{os.path.basename(processed_video_path)}_{frame_analysis_rate}"
         cached_results = cache_manager.get(cache_key, level="disk")
 
         if cached_results:
@@ -250,8 +278,7 @@ class MultimodalAnalysisAgent(Agent):
 
         multimodal_analysis_results = {
             "facial_expressions": [], "gesture_recognition": [],
-            "visual_complexity": [], "energy_levels": [], "engagement_metrics": [],
-            "qwen_features": []
+            "visual_complexity": [], "energy_levels": [], "engagement_metrics": []
         }
         
         all_engagement_scores = [] # To collect all scores for aggregation
@@ -267,6 +294,18 @@ class MultimodalAnalysisAgent(Agent):
                 model_complexity=self.HOLISTIC_MODEL_COMPLEXITY
             ) as holistic:
                 
+                # Extract frames at the specified rate
+                extracted_frames_info = frame_processor.extract_frames_at_rate(
+                    video_path=processed_video_path,
+                    fps=frame_analysis_rate
+                )
+                
+                total_frames_to_process = len(extracted_frames_info)
+                if total_frames_to_process == 0:
+                    self.log_warning("No frames extracted for multimodal analysis. Skipping.")
+                    set_stage_status('multimodal_analysis', 'skipped', {'reason': 'No frames extracted'})
+                    return context
+
                 for frame_info in extracted_frames_info:
                     frame_path = frame_info['frame_path']
                     timestamp = frame_info['timestamp_sec']
@@ -276,8 +315,8 @@ class MultimodalAnalysisAgent(Agent):
                         continue
                     
                     if processed_frame_count % self.PROGRESS_LOG_INTERVAL == 0:
-                        progress = (processed_frame_count / len(extracted_frames_info)) * 100
-                        print(f"🎞️ Processing frame {processed_frame_count}/{len(extracted_frames_info)} ({progress:.1f}%)")
+                        progress = (processed_frame_count / total_frames_to_process) * 100
+                        print(f"🎞️ Processing frame {processed_frame_count}/{total_frames_to_process} ({progress:.1f}%)")
 
                     # 1. DeepFace analysis
                     dominant_emotion, deepface_results = self._perform_deepface_analysis(current_frame, timestamp)
@@ -326,13 +365,6 @@ class MultimodalAnalysisAgent(Agent):
                             'energy': energy
                         }
                     })
-
-                    # 6. Qwen-VL analysis (only if clips are present and frame is relevant)
-                    # This part needs to be optimized to only run for frames within selected clips
-                    # For now, running on all extracted frames for simplicity of consolidation
-                    # Further optimization will be done in Phase 3 (Token Usage Optimization)
-                    qwen_result = self._perform_qwen_vision_analysis(frame_path, timestamp)
-                    multimodal_analysis_results["qwen_features"].append(qwen_result)
                     
                     processed_frame_count += 1
                         

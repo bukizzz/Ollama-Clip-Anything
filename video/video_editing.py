@@ -38,6 +38,8 @@ def batch_create_enhanced_clips(
     video_analysis: Dict,
     logger: Optional[logging.Logger] = None, 
     custom_clip_themes: Optional[List[Dict]] = None, 
+    zoom_events: Optional[List[Dict]] = None, # New parameter
+    video_output_settings: Optional[Dict] = None, # New parameter for resolution and aspect ratio
     **enhancement_options
 ) -> Tuple[List[str], List[int]]:
     """Create multiple enhanced clips with all features"""
@@ -57,7 +59,9 @@ def batch_create_enhanced_clips(
                 audio_rhythm_data=audio_rhythm_data,
                 llm_cut_decisions=llm_cut_decisions,
                 speaker_tracking_results=speaker_tracking_results,
-                video_analysis=video_analysis
+                video_analysis=video_analysis,
+                zoom_events=zoom_events, # Pass zoom_events
+                video_output_settings=video_output_settings # Pass video_output_settings
             ): (clip_data, i) for i, clip_data in enumerate(clips_data, 1)
         }
 
@@ -87,6 +91,7 @@ def batch_process_with_analysis(
     llm_cut_decisions: List[Dict], # New parameter
     speaker_tracking_results: Dict, # New parameter
     output_dir: str, # New parameter
+    zoom_events: Optional[List[Dict]] = None, # New parameter
     custom_settings: Optional[Dict] = None
 ) -> Tuple[List[str], Dict]:
     """Complete batch processing pipeline with analysis and optimization"""
@@ -112,7 +117,8 @@ def batch_process_with_analysis(
         audio_rhythm_data=audio_rhythm_data, 
         llm_cut_decisions=llm_cut_decisions, 
         speaker_tracking_results=speaker_tracking_results,
-        video_analysis=video_analysis
+        video_analysis=video_analysis,
+        zoom_events=zoom_events # Pass zoom_events
     )
 
     

@@ -2,6 +2,7 @@ import logging
 import time
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from agents.base_agent import Agent
 from core.state_manager import StateManager
@@ -22,6 +23,7 @@ class AgentManager:
         self.monitor.start_stage(stage_name)
         logging.info(f"Executing sequential agent {stage_name}...")
         try:
+            logging.info(f"DEBUG: video_encoder in context before {stage_name}: {context.get('metadata', {}).get('processing_settings', {}).get('video_encoder')}")
             updated_context = agent.execute(context)
             self.state_manager.update_state_file(updated_context)
             logging.info(f"✅ Finished {stage_name}. State saved.")
@@ -50,6 +52,7 @@ class AgentManager:
         self.monitor.start_stage(stage_name)
         logging.info(f"Submitting {stage_name} for parallel execution.")
         try:
+            logging.info(f"DEBUG: video_encoder in context before {stage_name}: {context_copy.get('metadata', {}).get('processing_settings', {}).get('video_encoder')}")
             updated_context = agent.execute(context_copy)
             self.monitor.end_stage(stage_name)
             
@@ -66,47 +69,53 @@ class AgentManager:
             resource_manager.unload_all_models()
             raise
 
-    def run(self, pipeline_agents: List[Agent], initial_context: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, pipeline_agents: List[Agent], initial_context: Dict[str, Any], pbar: tqdm) -> Dict[str, Any]:
         self.pipeline_agents = pipeline_agents
         self.context = initial_context
         
         executed_parallel_agents = set()
 
-        total_agents = len(pipeline_agents)
-        processed_agents_count = 0
+        # Determine already completed stages from the context
+        completed_stages = {stage for stage, status in self.context.get('pipeline_stages', {}).items() if status == 'complete'}
+        
+        # Update progress bar for already completed stages
+        pbar.update(len(completed_stages))
 
-        for i, agent in enumerate(pipeline_agents):
-            if agent.name in executed_parallel_agents:
+        for agent in pipeline_agents:
+            stage_name = agent.name
+            if stage_name in completed_stages:
+                logging.info(f"Skipping already completed stage: {stage_name}")
+                continue
+
+            if stage_name in executed_parallel_agents:
                 continue
 
             is_parallel_group_start = False
             current_parallel_group_agents = []
             for group_name, agent_names in self.parallel_groups.items():
-                if agent.name in agent_names:
+                if stage_name in agent_names:
                     is_parallel_group_start = True
-                    current_parallel_group_agents = [a for a in pipeline_agents if a.name in agent_names]
+                    current_parallel_group_agents = [a for a in self.pipeline_agents if a.name in agent_names]
                     break
             
             if is_parallel_group_start:
                 logging.info(f"Executing parallel group '{group_name}': {[a.name for a in current_parallel_group_agents]}")
                 with ThreadPoolExecutor(max_workers=len(current_parallel_group_agents)) as executor:
-                    futures = {executor.submit(self._run_parallel_agent, a.name, self.context.copy()): a.name for a in current_parallel_group_agents}
+                    futures = {executor.submit(self._run_parallel_agent, a.name, self.context.copy()): a for a in current_parallel_group_agents}
                     
                     for future in as_completed(futures):
-                        agent_name = futures[future]
+                        completed_agent = futures[future]
                         try:
                             updated_context_from_parallel_agent = future.result()
                             self.context = self.state_manager.update_state_file(updated_context_from_parallel_agent)
-                            logging.info(f"✅ Finished parallel agent {agent_name}. State saved.")
-                            executed_parallel_agents.add(agent_name)
-                            processed_agents_count += 1
+                            logging.info(f"✅ Finished parallel agent {completed_agent.name}. State saved.")
+                            executed_parallel_agents.add(completed_agent.name)
+                            pbar.update(1)
                         except Exception as e:
-                            logging.error(f"Error in parallel agent {agent_name}: {e}")
+                            logging.error(f"Error in parallel agent {completed_agent.name}: {e}")
                             raise
             else:
                 self.context = self._run_sequential_agent(agent, self.context)
-                processed_agents_count += 1
-            
-            logging.info(f"Processing Pipeline: {processed_agents_count}/{total_agents} agents completed ({processed_agents_count / total_agents * 100:.1f}%)")
+                pbar.update(1)
 
         return self.context

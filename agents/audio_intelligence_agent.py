@@ -207,6 +207,15 @@ class AudioIntelligenceAgent(Agent):
             self.log_warning("Theme identification model not loaded. Skipping theme analysis.")
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If audio analysis results already exist in the context, skip this stage.
+        if context.get('current_analysis', {}).get('audio_analysis_results') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Audio analysis already complete.")
+            return context
+
         processed_video_path = context.get("processed_video_path")
         
         context.setdefault('archived_data', {})

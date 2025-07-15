@@ -8,6 +8,15 @@ class LayoutOptimizationAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If layout optimization recommendations already exist in the context, skip this stage.
+        if context.get('layout_optimization_recommendations') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Layout optimization already complete.")
+            return context
+
         layout_detection = context.get('current_analysis', {}).get('layout_detection_results', [])
         speaker_tracking = context.get('current_analysis', {}).get('speaker_tracking_results', {})
         clips = context.get('current_analysis', {}).get('clips', [])

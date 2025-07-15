@@ -10,8 +10,18 @@ class ViralPotentialAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context):
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If clips already have viral potential scores, skip this stage.
+        existing_clips = context.get('current_analysis', {}).get('clips', [])
+        if existing_clips and all('viral_potential_score' in clip for clip in existing_clips) and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Viral potential already assessed for clips.")
+            return context
+
         # Updated paths to retrieve data from the hierarchical context
-        clips = context.get('current_analysis', {}).get('clips', [])
+        clips = existing_clips
         engagement_results = context.get('current_analysis', {}).get('multimodal_analysis_results', {}).get('engagement_metrics', [])
         hooks = context.get('identified_hooks', [])
         audio_analysis = context.get('current_analysis', {}).get('audio_analysis_results', {}) # Assuming audio analysis results are here

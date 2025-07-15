@@ -27,6 +27,15 @@ class StoryboardingAgent(Agent):
         self.frame_processor = None 
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If storyboard data already exists in the context, skip this stage.
+        if context.get('storyboard_data') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Storyboard data already complete.")
+            return context
+
         # Ensure 'metadata' is a dictionary and then get video_info
         context.setdefault('metadata', {})
         video_info = context['metadata'].get("video_info")
@@ -65,58 +74,47 @@ class StoryboardingAgent(Agent):
             set_stage_status('storyboarding_complete', 'complete', {'loaded_from_cache': True})
             return context
 
-        # Ensure 'archived_data' is a dictionary
-        context.setdefault('archived_data', {})
-        extracted_frames_info = context['archived_data'].get("raw_frames") # Get from archived_data
-        if not extracted_frames_info:
-            self.log_error("Extracted frames info missing. Skipping storyboarding.")
-            set_stage_status('storyboarding', 'skipped', {'reason': 'Missing extracted_frames_info'})
-            return context
-
         scene_boundaries = self.scene_detector.detect_scene_changes(processed_video_path)
         print(f"DEBUG: Detected scene boundaries: {scene_boundaries}")
 
         # Create a set of all relevant timestamps to analyze: start, end, and all scene boundaries
-        timestamps_to_analyze = {0.0, video_info['duration']}
+        timestamps_to_analyze = {0.0}
         for boundary in scene_boundaries:
             timestamps_to_analyze.add(boundary)
-
-        # Create a mapping of existing extracted frames for quick lookup
-        existing_frames_map = {}
-        for frame_info in extracted_frames_info:
-            # Use a rounded timestamp as key for approximate matching
-            sec_rounded = round(frame_info['timestamp_sec'], 1) # Round to 1 decimal for better matching
-            if sec_rounded not in existing_frames_map:
-                existing_frames_map[sec_rounded] = []
-            existing_frames_map[sec_rounded].append(frame_info)
+        
+        # Add the end of the video, slightly adjusted to avoid off-by-one errors
+        # Subtract a small epsilon (e.g., 0.01 seconds) from the total duration
+        # to ensure the frame is extracted just before the very end.
+        end_timestamp_adjusted = max(0.0, video_info['duration'] - 0.01)
+        timestamps_to_analyze.add(end_timestamp_adjusted)
 
         frames_for_storyboard_analysis = []
         for ts in sorted(list(timestamps_to_analyze)):
-            found_existing = False
-            # Check if a frame already exists very close to this timestamp
-            # Check current rounded second, and +/- 0.1 seconds for precision
-            for offset in [-0.1, 0.0, 0.1]: 
-                rounded_ts_check = round(ts + offset, 1)
-                if rounded_ts_check in existing_frames_map:
-                    for frame_info in existing_frames_map[rounded_ts_check]:
-                        if abs(frame_info['timestamp_sec'] - ts) < 0.2: # Within 0.2 seconds
-                            frames_for_storyboard_analysis.append(frame_info)
-                            found_existing = True
-                            break
-                if found_existing:
-                    break
-            
-            if not found_existing:
-                # If no sufficiently close frame exists, extract a new one
-                self.log_info(f"Extracting new frame at scene boundary: {ts:.2f}s")
-                new_frame_path = self.frame_processor.extract_frame_at_timestamp(processed_video_path, ts)
-                if new_frame_path and os.path.exists(new_frame_path): # Ensure file was actually created
-                    frames_for_storyboard_analysis.append({
-                        'frame_path': new_frame_path,
-                        'timestamp_sec': ts
-                    })
-                else:
-                    self.log_warning(f"Failed to extract frame at {ts:.2f}s for storyboarding or file not found.")
+            # Extract a new frame at each relevant timestamp
+            self.log_info(f"Extracting frame at timestamp: {ts:.2f}s for storyboarding.")
+            new_frame_path = self.frame_processor.extract_frame_at_timestamp(processed_video_path, ts)
+            if new_frame_path and os.path.exists(new_frame_path):
+                frames_for_storyboard_analysis.append({
+                    'frame_path': new_frame_path,
+                    'timestamp_sec': ts
+                })
+            else:
+                self.log_warning(f"Failed to extract frame at {ts:.2f}s for storyboarding or file not found.")
+                # --- NEW FALLBACK LOGIC ---
+                # If it's the very last frame attempt and it failed, try a slightly earlier timestamp
+                if abs(ts - video_info['duration']) < 0.05: # Check if it's close to the end
+                    self.log_warning(f"Attempting fallback for last frame extraction at {ts:.2f}s.")
+                    fallback_ts = max(0.0, video_info['duration'] - 0.1) # Try 0.1 seconds before end
+                    fallback_frame_path = self.frame_processor.extract_frame_at_timestamp(processed_video_path, fallback_ts)
+                    if fallback_frame_path and os.path.exists(fallback_frame_path):
+                        self.log_info(f"Successfully extracted fallback frame at {fallback_ts:.2f}s for storyboarding.")
+                        frames_for_storyboard_analysis.append({
+                            'frame_path': fallback_frame_path,
+                            'timestamp_sec': fallback_ts # Use fallback timestamp
+                        })
+                    else:
+                        self.log_error(f"Fallback extraction for last frame also failed at {fallback_ts:.2f}s.")
+                # --- END NEW FALLBACK LOGIC ---
 
         # Filter out duplicates based on frame_path and sort by timestamp
         seen_frame_paths = set()

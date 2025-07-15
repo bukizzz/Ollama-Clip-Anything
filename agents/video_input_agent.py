@@ -14,68 +14,57 @@ class VideoInputAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        print("\n1. Getting input video...")
-        
-        # Retrieve args from context or create a dummy for initial run
-        args_dict = context.get("args", {})
-        args = argparse.Namespace(**args_dict)
+        """
+        Ensures a video is available for processing, either by using a path from the
+        context, command-line arguments, or by prompting the user.
+        """
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
 
-        processed_video_path = context.get('processed_video_path')
-        video_info = context.get('metadata', {}).get('video_info') # Get from new hierarchical structure
-        current_stage = context.get('pipeline_stages', {}).get('video_input_complete', {}).get('status')
+        try:
+            args_dict = context.get("args", {})
+            youtube_url_arg = args_dict.get("youtube_url")
+            youtube_quality_arg = args_dict.get("youtube_quality")
+            video_path_arg = args_dict.get("video_path")
 
-        # Change condition to check for None or "failed" status
-        if current_stage is None or current_stage == "failed":
-            try:
-                input_video_path = None
-                arg_video_path = getattr(args, 'video_path', None)
-                arg_youtube_url = getattr(args, 'youtube_url', None)
-                arg_youtube_quality = getattr(args, 'youtube_quality', None)
+            input_video_path = None
 
-                # Ensure empty strings are treated as None for video_path and youtube_url
-                if arg_video_path == "":
-                    arg_video_path = None
-                if arg_youtube_url == "":
-                    arg_youtube_url = None
+            # If command-line arguments are provided, they take precedence
+            if youtube_url_arg:
+                input_video_path = video_input.get_video_input(
+                    youtube_url=youtube_url_arg,
+                    youtube_quality=youtube_quality_arg
+                )
+            elif video_path_arg:
+                input_video_path = video_input.get_video_input(
+                    video_path=video_path_arg
+                )
+            # If no command-line arguments, check for previously processed video
+            elif context.get('processed_video_path') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+                print(f"✅ Skipping {stage_name}: Video already processed from previous session.")
+                return context # Exit early if already processed and no new input
+            elif context.get('processed_video_path'):
+                input_video_path = context.get('processed_video_path')
+            else:
+                # If no source is provided via args or context, prompt the user
+                input_video_path = video_input.choose_input_video()
 
-                if arg_video_path or arg_youtube_url:
-                    input_video_path = video_input.get_video_input(
-                        video_path=arg_video_path,
-                        youtube_url=arg_youtube_url,
-                        youtube_quality=arg_youtube_quality
-                    )
-                else:
-                    # If neither is provided as an argument, prompt the user
-                    input_video_path = video_input.choose_input_video()
+            if not input_video_path or not os.path.exists(input_video_path):
+                raise FileNotFoundError(f"Video file not found at: {input_video_path}")
 
-                processed_video_path = input_video_path # The returned path is already processed/downloaded
-                
-                # Get video info using utils.get_video_info after download/selection
-                video_info, _ = utils.get_video_info(processed_video_path)
-
-                # Populate metadata, including processing settings from config
-                context['metadata'] = {
-                    'video_info': video_info,
-                    'processing_settings': {
-                        "video_encoder": self.config.get('video_encoder'),
-                        "ffmpeg_encoder_params": self.config.get('ffmpeg_encoder_params')
-                    }
-                }
-                context['processed_video_path'] = processed_video_path
-                context['current_stage'] = "video_input_complete"
-                context['temp_files'] = {"processed_video": processed_video_path}
-            except Exception as e:
-                print(f"❌ Failed to get video input or validate: {e}")
-                context["pipeline_stages"]["video_input_complete"] = {"status": "failed", "details": {"reason": str(e)}}
-                return context
-        else:
-            print(f"â Š Skipping video input. Loaded from state: {processed_video_path}")
+            # Get video info and update context
+            video_info, _ = utils.get_video_info(input_video_path)
+            context['processed_video_path'] = input_video_path
+            context.setdefault('metadata', {})['video_info'] = video_info
+            context['pipeline_stages'][stage_name] = 'complete'
             
-        if video_info: # Check if video_info is not None before accessing its keys
-            print(f"đŸ“š Video info: {video_info['width']}x{video_info['height']}, "
-                  f"{video_info['duration']:.1f}s, {video_info['fps']:.1f}fps, "
-                  f"codec: {video_info['codec']}")
-        else:
-            print("đŸ“š Video info: Not available or video processing failed.")
-        
+            print(f"✅ {stage_name} complete. Video ready for processing at: {input_video_path}")
+            print(f"   Video info: {video_info['width']}x{video_info['height']}, {video_info['duration']:.1f}s, {video_info['fps']:.1f}fps, codec: {video_info['codec']}")
+
+        except Exception as e:
+            print(f"❌ Error in {stage_name}: {e}")
+            context['pipeline_stages'][stage_name] = 'failed'
+            context['error_log'] = str(e)
+            raise  # Re-raise the exception to halt the pipeline
+
         return context

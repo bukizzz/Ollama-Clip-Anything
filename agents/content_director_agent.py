@@ -9,7 +9,7 @@ import time
 class ContentAlignment(BaseModel):
     start_time: float = Field(description="The start time in seconds of the aligned moment.")
     end_time: float = Field(description="The end time in seconds of the aligned moment.")
-    speaker: str = Field(description="The ID of the speaker.")
+    speaker: Optional[str] = Field(None, description="The ID of the speaker. (Optional)")
     transcript_segment: str = Field(description="The spoken content during this segment.")
     visual_description: str = Field(description="A brief description of the visual content at that moment.")
     scene_change: bool = Field(description="True if a scene change was detected, false otherwise.")
@@ -43,6 +43,15 @@ class ContentDirectorAgent(Agent):
         self.state_manager = state_manager
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If LLM cut decisions already exist in the context, skip this stage.
+        if context.get('current_analysis', {}).get('llm_cut_decisions') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: LLM cut decisions already complete.")
+            return context
+
         full_transcription = context.get("archived_data", {}).get("full_transcription")
         storyboard_data = context.get("storyboard_data")
         audio_analysis_results = context.get('current_analysis', {}).get('audio_analysis_results')
@@ -288,6 +297,26 @@ class ContentDirectorAgent(Agent):
 
                 Provide your response as a JSON object with a single key "cut_decisions" which is a list of refined cut decision objects.
                 Ensure the 'viral_potential_score' is updated and 'key_elements' is a JSON array of strings based on the new information.
+
+                REQUIRED JSON FORMAT:
+                {
+                    "cut_decisions": [
+                        {
+                            "start_time": 10.0,
+                            "end_time": 25.0,
+                            "reason": "Introduction of main topic and high speaker energy.",
+                            "key_elements": ["topic introduction", "speaker energy spike"],
+                            "viral_potential_score": 7
+                        },
+                        {
+                            "start_time": 30.5,
+                            "end_time": 45.0,
+                            "reason": "Visual demonstration of a key concept.",
+                            "key_elements": ["visual aid", "concept explanation"],
+                            "viral_potential_score": 8
+                        }
+                    ]
+                }
                 """
 
                 refinement_prompt = build_adaptive_prompt(

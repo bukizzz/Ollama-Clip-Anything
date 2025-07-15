@@ -129,36 +129,46 @@ class LayoutSpeakerAgent(Agent):
 
             # Speaker Tracking Logic (from SpeakerTrackingAgent)
             speaker_tracking_results = {}
-            if diarization and faces_over_time:
+            if diarization:
                 print("🗣️ Performing speaker tracking...")
                 speaker_map = defaultdict(list)
-                for segment in diarization:
-                    start, end, speaker_label = segment['start'], segment['end'], segment['speaker']
-                    
-                    # Find faces that appear during this speech segment
-                    # Note: faces_over_time from multimodal_analysis_results doesn't contain face IDs directly
-                    # This part needs to be refined if actual face IDs are required for mapping.
-                    # For now, we'll assume presence of a face is enough for a simplistic mapping.
-                    active_faces_in_segment = [f for f in faces_over_time if f['timestamp'] >= start and f['timestamp'] <= end and f.get('expression') != "neutral"] # Simplified check for active face
-                    
-                    if active_faces_in_segment:
-                        # Simplistic: just associate the speaker with the presence of any face
-                        # A more robust solution would involve actual face tracking and ID assignment
-                        speaker_map[speaker_label].append(True) # Just mark that a face was present
+                
+                time_to_num_faces = {}
+                for layout_seg in layout_segments:
+                    mid_time = (layout_seg['start_time'] + layout_seg['end_time']) / 2
+                    time_to_num_faces[mid_time] = layout_seg['num_faces']
 
-                final_speaker_to_face = {k: True for k, v in speaker_map.items() if v} # Simplified mapping
+                sorted_layout_segments = sorted(layout_segments, key=lambda x: x['start_time'])
+
+                for segment in diarization:
+                    start, end = segment['start'], segment['end']
+                    # Ensure speaker_label is always a string, default to "Unknown Speaker" if None
+                    speaker_label = str(segment.get('speaker', "Unknown Speaker"))
+                    
+                    face_present_in_speaker_segment = False
+                    for layout_seg in sorted_layout_segments:
+                        if max(start, layout_seg['start_time']) < min(end, layout_seg['end_time']):
+                            if layout_seg['num_faces'] > 0:
+                                face_present_in_speaker_segment = True
+                                break
+
+                    if face_present_in_speaker_segment:
+                        speaker_map[speaker_label].append(True)
+
+                final_speaker_to_face = {k: True for k, v in speaker_map.items() if v}
 
                 speaker_profiles = {}
                 transitions = []
                 last_speaker = None
                 for segment in sorted(diarization, key=lambda x: x['start']):
-                    speaker_label = segment['speaker']
+                    # Ensure speaker_label is always a string here too
+                    speaker_label = str(segment.get('speaker', "Unknown Speaker"))
                     if speaker_label != last_speaker and last_speaker is not None:
                         transitions.append({'timestamp': segment['start'], 'from': last_speaker, 'to': speaker_label})
                     last_speaker = speaker_label
 
                     if speaker_label not in speaker_profiles:
-                        speaker_profiles[speaker_label] = {'visual_profile': {}} # Conceptual visual profile
+                        speaker_profiles[speaker_label] = {'visual_profile': {}}
 
                 speaker_tracking_results = {
                     "speaker_to_face_map": final_speaker_to_face,
@@ -168,7 +178,8 @@ class LayoutSpeakerAgent(Agent):
                 context['current_analysis']['speaker_tracking_results'] = speaker_tracking_results
                 print("✅ Speaker tracking complete.")
             else:
-                self.log_warning("Diarization or multimodal analysis results missing. Skipping speaker tracking.")
+                self.log_warning("Diarization results missing. Skipping speaker tracking.")
+                context['current_analysis']['speaker_tracking_results'] = {}
 
             set_stage_status('layout_speaker_analysis_complete', 'complete', {
                 'num_layout_segments': len(layout_segments),

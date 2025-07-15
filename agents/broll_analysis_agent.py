@@ -26,6 +26,15 @@ class BrollAnalysisAgent(Agent):
         self.supported_formats = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp'}
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If B-roll suggestions already exist in the context, skip this stage.
+        if context.get('b_roll_suggestions') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: B-roll analysis already complete.")
+            return context
+
         # Retrieve clips from the correct location in the hierarchical context
         clips = context.get('current_analysis', {}).get('clips', [])
         audio_rhythm = context.get('audio_rhythm_data', {}) # This might also need to be checked for its correct location

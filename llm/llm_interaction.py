@@ -197,7 +197,7 @@ CRITICAL REQUIREMENTS:
 
 REQUIRED JSON FORMAT:
 [
-    clip_1{
+    {
         "clip_description": "Brief description of the clip",
         "total_duration": "The sum of all scene durations in seconds",
         "reason": "Why this clip was selected",
@@ -208,19 +208,19 @@ REQUIRED JSON FORMAT:
                 "end_time": 135.0,
                 "scene_duration": 15.0,
                 "description": "What happens in this scene"
-            }
+            },
             {
                 "start_time": 140.0,
                 "end_time": 153.0,
                 "scene_duration": 13.0,
                 "description": "What happens in this scene"
-            }
+            },
             {
                 "start_time": 160.0,
                 "end_time": 195.0,
                 "scene_duration": 35.0,
                 "description": "What happens in this scene"
-            }
+            },
             {
                 "start_time": 200,
                 "end_time": 212.0,
@@ -228,14 +228,21 @@ REQUIRED JSON FORMAT:
                 "description": "What happens in this scene"
             }
         ]
+    },
+    {
+        "clip_description": "...",
+        "total_duration": "...",
+        "reason": "...",
+        "viral_potential_score": 8,
+        "scenes": [...]
+    },
+    {
+        "clip_description": "...",
+        "total_duration": "...",
+        "reason": "...",
+        "viral_potential_score": 8,
+        "scenes": [...]
     }
-    clip_2{
-        ...
-    }
-    clip_3{
-        ...
-    }
-    ...
 ]
 
 IMPORTANT: 
@@ -450,7 +457,7 @@ def _write_daily_summary_log(date: str, usage_data: Dict[str, Dict[str, Any]]):
         llm_logger.error(f"Failed to write daily summary log: {e}")
 
 
-def llm_pass(model_name: str, provider: str, requests_per_minute: float, requests_per_day: float, tokens_per_minute: float, messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
+def llm_pass(model_name: str, provider: str, requests_per_minute: Optional[float], requests_per_day: Optional[float], tokens_per_minute: Optional[float], messages: List[Dict[str, Any]], image_path: Optional[str] = None, use_json_format: bool = True) -> str:
     """Send messages to LLM model and return raw response content."""
     # Use the module-level loggers
     
@@ -463,9 +470,14 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
 
     messages_to_send = [msg.copy() for msg in messages] 
 
+    # Handle None values for rate limits by treating them as infinite
+    rpm = requests_per_minute if requests_per_minute is not None else float('inf')
+    tpm = tokens_per_minute if tokens_per_minute is not None else float('inf')
+    rpd = requests_per_day if requests_per_day is not None else float('inf') # Ensure rpd is also handled
+
     # Proactive Rate Limiting (Requests Per Minute)
-    if requests_per_minute != float('inf'):
-        min_interval_between_requests = (60 / requests_per_minute) * 1.1 # 10% buffer
+    if rpm != float('inf'):
+        min_interval_between_requests = (60 / rpm) * 1.1 # 10% buffer
         last_req_time = _last_request_timestamps.get(model_name, 0.0)
         time_since_last_request = time.time() - last_req_time
 
@@ -477,8 +489,8 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
     _last_request_timestamps[model_name] = time.time() # Update timestamp after potential sleep
 
     # Proactive Rate Limiting (Tokens Per Minute)
-    if tokens_per_minute != float('inf'):
-        min_interval_between_token_usage = (60 / tokens_per_minute) * 1.1 # 10% buffer
+    if tpm != float('inf'):
+        min_interval_between_token_usage = (60 / tpm) * 1.1 # 10% buffer
         last_token_time = _last_token_timestamps.get(model_name, 0.0)
         time_since_last_token_usage = time.time() - last_token_time
 
@@ -495,8 +507,8 @@ def llm_pass(model_name: str, provider: str, requests_per_minute: float, request
 
     # Proactive Daily Limit Check (Requests)
     current_requests = _daily_usage_data.get(model_name, {}).get('requests', 0)
-    if current_requests >= requests_per_day:
-        llm_logger.warning(f"Proactive daily quota check: {model_name} has reached its daily request limit ({current_requests}/{requests_per_day}).")
+    if current_requests >= rpd: # Use rpd (requests_per_day, now guaranteed float or inf)
+        llm_logger.warning(f"Proactive daily quota check: {model_name} has reached its daily request limit ({current_requests}/{rpd}).")
         raise RuntimeError(f"Daily request quota exhausted for model: {model_name}")
 
     # Proactive Daily Limit Check (Tokens) - This would require estimating tokens before sending
@@ -665,35 +677,83 @@ def _extract_json_from_string(text: str) -> str:
     raise ValueError(f"Could not extract valid JSON from text: {text[:200]}...")
 
 
-def sanitize_segments(segments: List[Dict[str, Any]], config: Any) -> List[Clip]:
+def sanitize_segments(segments: List[Dict[str, Any]], config: Any, video_duration: float) -> List[Clip]:
     """
-    Cleans and validates clip data from LLM output using Pydantic models.
-    Filters clips based on duration and logs invalid entries.
+    Cleans, validates, and attempts to adjust clip data from LLM output using Pydantic models.
+    Adjusts clips to fit duration constraints and logs invalid entries.
     """
-    # Use the module-level loggers
-    
     cleaned_clips: List[Clip] = []
     
     min_clip_duration = config.get('clip_validation_min', 60)
     max_clip_duration = config.get('clip_validation_max', 90)
+    min_scene_duration = 2.0 # Enforce minimum scene duration as per prompt
 
-    if min_clip_duration == 60 and max_clip_duration == 90: # Only warn if defaults are used because config values are missing
+    if min_clip_duration == 60 and max_clip_duration == 90:
         llm_logger.warning("clip_validation_min or clip_validation_max not found in config. Using default values (60-90s).")
 
     for clip_data in segments:
         try:
-            # Attempt to parse the raw clip data into the Pydantic Clip model
-            # This handles type conversion, field validation (e.g., viral_potential_score range)
-            # and the custom model_validator for scenes and total_duration.
             clip = Clip.model_validate(clip_data)
             
-            # Additional duration validation after Pydantic's internal checks
+            original_total_duration = clip.total_duration
+            
+            # Attempt to adjust clip duration if it's out of bounds
             if not (min_clip_duration <= clip.total_duration <= max_clip_duration):
-                llm_logger.warning(
-                    f"Skipping clip due to invalid total duration: {clip.total_duration:.1f}s "
-                    f"(expected {min_clip_duration}-{max_clip_duration}s) for clip: {clip.clip_description}"
+                llm_logger.info(
+                    f"Clip duration {clip.total_duration:.1f}s is outside target range "
+                    f"({min_clip_duration}-{max_clip_duration}s). Attempting to adjust..."
                 )
-                continue
+                
+                if not clip.scenes:
+                    llm_logger.warning(f"Cannot adjust clip {clip.clip_description}: no scenes found.")
+                    continue
+
+                last_scene = clip.scenes[-1]
+                
+                if clip.total_duration > max_clip_duration:
+                    # Clip is too long, shorten the last scene
+                    excess_duration = clip.total_duration - max_clip_duration
+                    new_last_scene_end_time = last_scene.end_time - excess_duration
+                    
+                    # Ensure the last scene doesn't become too short
+                    if new_last_scene_end_time - last_scene.start_time < min_scene_duration:
+                        llm_logger.warning(
+                            f"Adjusting clip {clip.clip_description} would make last scene too short. "
+                            f"Skipping clip. Original duration: {original_total_duration:.1f}s"
+                        )
+                        continue
+                    
+                    last_scene.end_time = new_last_scene_end_time
+                    llm_logger.info(f"Shortened last scene of clip {clip.clip_description} by {excess_duration:.1f}s.")
+
+                elif clip.total_duration < min_clip_duration:
+                    # Clip is too short, extend the last scene
+                    needed_duration = min_clip_duration - clip.total_duration
+                    new_last_scene_end_time = last_scene.end_time + needed_duration
+                    
+                    # Cap the extension at the original video's duration
+                    if new_last_scene_end_time > video_duration:
+                        new_last_scene_end_time = video_duration
+                        llm_logger.warning(
+                            f"Extended last scene of clip {clip.clip_description} up to video end ({video_duration:.1f}s), "
+                            f"but still couldn't reach min duration. Original duration: {original_total_duration:.1f}s"
+                        )
+                    
+                    last_scene.end_time = new_last_scene_end_time
+                    llm_logger.info(f"Extended last scene of clip {clip.clip_description} by {needed_duration:.1f}s.")
+                
+                # Recalculate total_duration after adjustment
+                clip.total_duration = sum(s.end_time - s.start_time for s in clip.scenes)
+                
+                if not (min_clip_duration <= clip.total_duration <= max_clip_duration):
+                    llm_logger.warning(
+                        f"Clip {clip.clip_description} still out of range after adjustment: {clip.total_duration:.1f}s. Skipping."
+                    )
+                    continue
+                else:
+                    llm_logger.info(
+                        f"Clip {clip.clip_description} adjusted to {clip.total_duration:.1f}s (from {original_total_duration:.1f}s)."
+                    )
             
             cleaned_clips.append(clip)
 
@@ -705,6 +765,7 @@ def sanitize_segments(segments: List[Dict[str, Any]], config: Any) -> List[Clip]
             continue
             
     return cleaned_clips
+
 
 
 def robust_llm_json_extraction(system_prompt: str, user_prompt: str, output_schema: Type[BaseModel], image_path: Optional[str] = None, max_attempts: int = 3, raw_output_mode: bool = False) -> Any:
@@ -1026,8 +1087,7 @@ Transcript:
         raise RuntimeError(f"Transcript summarization failed: {e}") from e
 
 
-def get_clips_from_llm(user_prompt: Optional[str] = None, storyboarding_data: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-
+def get_clips_from_llm(user_prompt: Optional[str] = None, storyboarding_data: Optional[List[Dict[str, Any]]] = None, video_duration: float = 0.0) -> List[Dict[str, Any]]:
     """
     Get clips with retry logic using the robust LLM JSON extraction approach.
     """
@@ -1055,7 +1115,7 @@ def get_clips_from_llm(user_prompt: Optional[str] = None, storyboarding_data: Op
             clips_data_root_model = robust_llm_json_extraction(system_prompt, formatted_main_prompt, output_schema=Clips)
 
 
-            cleaned_segments = sanitize_segments(clips_data_root_model.root, config)
+            cleaned_segments = sanitize_segments(clips_data_root_model.root, config, video_duration) # Pass video_duration
             
             if len(cleaned_segments) >= min_clips_needed:
                 llm_logger.info(f"Successfully extracted {len(cleaned_segments)} valid clips")
@@ -1079,6 +1139,23 @@ def get_clips_from_llm(user_prompt: Optional[str] = None, storyboarding_data: Op
                 raise RuntimeError(f"Failed to extract clips after {max_retries} attempts. Last error: {e}")
     
     return [] # Should not be reached if max_retries > 0 and no exception is raised on last attempt.
+
+def get_model_details(model_name: str) -> Optional[Dict[str, Any]]:
+    """Retrieves details for a specific LLM model from the configuration."""
+    all_models = config.get('llm.models')
+    if not all_models or not isinstance(all_models, dict):
+        llm_logger.error("LLM models configuration not found or is invalid.")
+        return None
+    return all_models.get(model_name)
+
+def switch_active_model(config_key: str):
+    """
+    Switches the current_active_model for a given LLM model type
+    (e.g., 'llm_model' or 'image_model')
+    by moving to the next model in its priority list and persists the change to config.yaml.
+    """
+    config.update_llm_active_model(config_key)
+
 
 def get_viral_recommendations_batch(recommendation_contexts: List[Dict[str, Any]]) -> List[str]:
     """

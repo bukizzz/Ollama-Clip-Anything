@@ -98,15 +98,11 @@ def extract_audio(video_path: str, audio_path: str) -> None:
 def normalize_audio_loudness(input_audio_path: str, output_audio_path: str) -> None:
     """Normalize audio loudness using ffmpeg-normalize."""
     logger.info(f"Normalizing audio loudness for {input_audio_path}...")
-    norm = FFmpegNormalize()
-    # Pylance might show errors here due to incomplete type hints in the ffmpeg-normalize library,
-    # but these are the correct attributes to set for configuration.
-    norm.loudness_target = -23.0  # EBU R128 standard
-    norm.true_peak_target = -1.0
-    norm.loudness_range_target = 10.0 # Added to address the warning
-    norm.print_stats = False
-    norm.add_media_file(input_audio_path, output_audio_path)
     try:
+        norm = FFmpegNormalize(
+            print_stats=False
+        )
+        norm.add_media_file(input_audio_path, output_audio_path)
         norm.run_normalization()
         logger.info("Audio loudness normalization complete.")
     except Exception as e:
@@ -171,23 +167,14 @@ def transcribe_video(video_path: str) -> list[dict]:
         enhanced_vocals_path = enhance_audio(separated_vocals_path, get_temp_path('enhanced_vocals.wav'))
 
         logger.info(f"Running faster-whisper transcription on {device}...")
-        try:
-            segments, info = model.transcribe(
-                enhanced_vocals_path, # Transcribe only vocals
-                word_timestamps=True,
-                condition_on_previous_text=False,
-                vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500)
-            )
-        except Exception as transcribe_error:
-            logger.warning(f"Transcription failed with VAD enabled: {transcribe_error}")
-            logger.info("Retrying without VAD...")
-            segments, info = model.transcribe(
-                enhanced_vocals_path, # Transcribe only vocals
-                word_timestamps=True,
-                condition_on_previous_text=False,
-                vad_filter=False
-            )
+        # Disable VAD filter to ensure timestamps directly correspond to the original audio's timeline
+        # This is to test the hypothesis that VAD is causing A/V desynchronization.
+        segments, info = model.transcribe(
+            enhanced_vocals_path, # Transcribe only vocals
+            word_timestamps=True,
+            condition_on_previous_text=False,
+            vad_filter=False # VAD filter explicitly set to False
+        )
         
         logger.info(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
         

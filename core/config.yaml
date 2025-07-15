@@ -1,383 +1,245 @@
-# ============================================================================
-# VIDEO PROCESSING PIPELINE CONFIGURATION
-# ============================================================================
-# This configuration file defines the complete video processing pipeline
-# including agents, analysis settings, and output parameters.
-
-# ----------------------------------------------------------------------------
-# AGENT CONFIGURATION
-# ----------------------------------------------------------------------------
-# Defines which agents are enabled and their execution order
 agents:
-  # List of all enabled processing agents
   enabled_agents:
-    - VideoInputAgent          # Handles video input and initial processing
-    - FramePreprocessingAgent   # Preprocesses video frames
-    - AudioIntelligenceAgent    # Analyzes audio content and speech
-    - MultimodalAnalysisAgent   # Combines video and audio analysis
-    - StoryboardingAgent        # Creates video storyboards
-    - BrollAnalysisAgent        # Analyzes B-roll footage
-    - LLMSelectionAgent         # Selects appropriate LLM for tasks
-    - LayoutSpeakerAgent        # Detects speaker layouts
-    - HookIdentificationAgent   # Identifies engaging video hooks
-    - ContentDirectorAgent      # Directs overall content strategy
-    - ViralPotentialAgent       # Analyzes viral potential
-    - DynamicEditingAgent       # Performs dynamic video editing
-    - MusicSyncAgent            # Synchronizes music with video
-    - LayoutOptimizationAgent   # Optimizes video layouts
-    - SubtitleAnimationAgent    # Creates animated subtitles
-    - VideoProductionAgent      # Final video production
-    - ResultsSummaryAgent       # Generates processing summary
-
-  # Parallel execution groups for performance optimization
+  - VideoInputAgent
+  - FramePreprocessingAgent
+  - AudioIntelligenceAgent
+  - AudioRhythmAgent
+  - MultimodalAnalysisAgent
+  - StoryboardingAgent
+  - BrollAnalysisAgent
+  - LLMSelectionAgent
+  - LayoutSpeakerAgent
+  - HookIdentificationAgent
+  - ContentDirectorAgent
+  - ViralPotentialAgent
+  - DynamicEditingAgent
+  - MusicSyncAgent
+  - LayoutOptimizationAgent
+  - SubtitleAnimationAgent
+  - VideoProductionAgent
+  - ResultsSummaryAgent
   parallel_groups:
-    group_1: [AudioIntelligenceAgent, FramePreprocessingAgent]
-    group_2: [MultimodalAnalysisAgent, StoryboardingAgent]
-    group_3: [LLMSelectionAgent, ContentDirectorAgent]
-    group_4: [ViralPotentialAgent, DynamicEditingAgent, MusicSyncAgent]
-
-# ----------------------------------------------------------------------------
-# AUDIO PROCESSING CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for audio analysis and processing
+    group_1:
+    - AudioIntelligenceAgent
+    - FramePreprocessingAgent
+    - AudioRhythmAgent
+    group_2:
+    - MultimodalAnalysisAgent
+    - StoryboardingAgent
+    group_3:
+    - LLMSelectionAgent
+    - ContentDirectorAgent
+    group_4:
+    - ViralPotentialAgent
+    - DynamicEditingAgent
+    - MusicSyncAgent
 audio_analysis:
-  speaker_diarization_enabled: true  # Enable speaker identification
-
-# Audio rhythm and beat detection settings
+  speaker_diarization_enabled: true
 audio_rhythm:
-  beat_matching_sensitivity: 0.7     # Sensitivity for beat detection (0-1)
-  tempo_detection_sensitivity: 0.8   # Sensitivity for tempo detection (0-1)
-
-# ----------------------------------------------------------------------------
-# CLIP PROCESSING CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for video clip processing and validation
-b_roll_assets_dir: broll              # Directory containing B-roll assets
-clip_duration_max: 120                # Maximum clip duration in seconds
-clip_duration_min: 30                 # Minimum clip duration in seconds
-clip_prefix: clip                     # Prefix for generated clip files
-clip_validation_max: 120              # Maximum duration for clip validation
-clip_validation_min: 30               # Minimum duration for clip validation
-custom_clip_themes: []                # Custom themes for clip generation
-
-# ----------------------------------------------------------------------------
-# ENGAGEMENT ANALYSIS CONFIGURATION
-# ----------------------------------------------------------------------------
-# Thresholds for analyzing viewer engagement factors
+  beat_matching_sensitivity: 0.7
+  tempo_detection_sensitivity: 0.8
+b_roll_assets_dir: broll
+clip_duration_max: 120
+clip_duration_min: 30
+clip_prefix: clip
+clip_validation_max: 120
+clip_validation_min: 30
+custom_clip_themes: []
 engagement_analysis:
-  energy_level_threshold: 0.5         # Threshold for energy level detection
-  facial_expression_threshold: 0.7    # Threshold for facial expression analysis
-  gesture_detection_threshold: 0.6    # Threshold for gesture detection
-
-# ----------------------------------------------------------------------------
-# FFMPEG ENCODING CONFIGURATION
-# ----------------------------------------------------------------------------
-# Hardware-accelerated encoding parameters for different codecs
+  energy_level_threshold: 0.5
+  facial_expression_threshold: 0.7
+  gesture_detection_threshold: 0.6
 ffmpeg_encoder_params:
-  # AV1 NVENC encoding parameters
   av1_nvenc:
-    - -preset
-    - p5
-  
-  # H.264 NVENC encoding parameters (most compatible)
+  - -preset
+  - p5
   h264_nvenc:
-    - -preset
-    - p5
-    - -rc:v
-    - vbr
-    - -cq
-    - '24'
-  
-  # HEVC NVENC encoding parameters (better compression)
+  - -preset
+  - p5
+  - -rc:v
+  - vbr
+  - -cq
+  - '24'
   hevc_nvenc:
-    - -preset
-    - p5
-
-# Global FFmpeg parameters applied to all encodings
+  - -preset
+  - p5
 ffmpeg_global_params:
-  - -pix_fmt
-  - yuv420p      # Standard pixel format for compatibility
-  - -movflags
-  - +faststart   # Optimize for web streaming
-
-# Path to FFmpeg executable
+- -pix_fmt
+- yuv420p
+- -movflags
+- +faststart
 ffmpeg_path: /usr/local/bin/ffmpeg
-
-# ----------------------------------------------------------------------------
-# SUBTITLE STYLING CONFIGURATION
-# ----------------------------------------------------------------------------
-# Colors and styling for subtitle highlights and backgrounds
-highlight_font_color: 00FFFF          # Cyan color for highlighted text
-highlight_outline_color: '000000'     # Black outline for highlights
-subtitle_background_color: FFA500     # Orange background for subtitles
-subtitle_border_radius: 10            # Rounded corners for subtitle boxes
-subtitle_font_color: FFFFFF           # White text color
-subtitle_outline_color: '000000'      # Black outline for readability
-subtitle_shadow_color: '000000'       # Black shadow for depth
-
-# Font settings for subtitles
-subtitle_font_families:
-  - Impact        # Primary bold font
-  - Arial Black   # Fallback bold font
-  - Bebas Neue    # Modern sans-serif font
-
-subtitle_font_size: 28                # Font size in points
-
-# ----------------------------------------------------------------------------
-# EXTERNAL SERVICE TOKENS
-# ----------------------------------------------------------------------------
-# Authentication tokens for external services
+highlight_font_color: 00FFFF
+highlight_outline_color: '000000'
 huggingface_tokens:
-  pyannote_audio: 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  # For speaker diarization
-
-# ----------------------------------------------------------------------------
-# NARRATION CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for intro narration generation
+  pyannote_audio: YOUR_HF_TOKEN
 intro_narration:
-  duration_limit_seconds: 5           # Maximum intro duration
-  tone_matching_enabled: true         # Match tone to content
-  voice_cloning_enabled: true         # Enable voice cloning
-
-# ----------------------------------------------------------------------------
-# LAYOUT DETECTION CONFIGURATION
-# ----------------------------------------------------------------------------
-# Thresholds for detecting different video layouts
+  duration_limit_seconds: 5
+  tone_matching_enabled: true
+  voice_cloning_enabled: true
 layout_detection:
-  multi_person_detection_threshold: 0.75    # Threshold for multi-person scenes
-  screen_share_identification_threshold: 0.8 # Threshold for screen sharing
-
-# ----------------------------------------------------------------------------
-# LARGE LANGUAGE MODEL CONFIGURATION
-# ----------------------------------------------------------------------------
-# Comprehensive LLM setup including API keys and model priorities
+  multi_person_detection_threshold: 0.75
+  screen_share_identification_threshold: 0.8
 llm:
-  # API keys for different LLM providers
   api_keys:
-    #gemini: AIzaSyC1PN8c7Vn-O3q-ZP1b8RjaOx6aNP--d5Y #dbird1178
-    #gemini: AIzaSyAUzFwuDG1etv1-1224LxXDg1qKh5iSq2U  # vujovicvukk.sv
-    gemini: AIzaSyBFOILG3hixQ-IJUIdUDgj5tPGl3xtPIRo #vujovicvukk
-    #gemini: AIzaSyBgTq4sbUB5HlHHN3g8zQAvP3EQFRKDNKA # vujovicv734
+    gemini: 
     ollama: http://localhost:11434
     openai: YOUR_OPENAI_KEY
-
-  # Currently active models
-  current_active_image_model: gemma-3-12b-it
+  current_active_image_model: gemma-3-27b-it
   current_active_llm_model: gemini-2.5-flash-preview-04-17
-
-  # Model priority lists (higher priority = used first)
   image_models_priority:
-    - gemma-3-12b-it
-    - gemma-3-4b-it
-    - gemma-3-1b-it
-    - llava:latest
-    - qwen2.5vl:3b
-
+  - gemma-3-27b-it
+  - gemma-3-12b-it
+  - gemma-3-4b-it
+  - gemma-3-1b-it
+  - llava:latest
+  - qwen2.5vl:3b
   llm_models_priority:
-    - gemma-3-27b-it
-    - gemini-2.5-flash-preview-04-17
-    - gemini-2.5-flash
-    - gemini-2.5-flash-lite-preview-06-17
-
-  # Minimum model requirements
+  - gemini-2.5-flash
+  - gemini-2.5-flash-lite-preview-06-17
+  - gemini-2.5-flash-preview-04-17
   min_model: MiniCPM
-
-  # Detailed model configurations with rate limits
   models:
-    # Ollama models (local, no rate limits)
     codegemma:7b:
       provider: ollama
       requests_per_day: null
       requests_per_minute: null
-
     codegemma:7b-instruct:
       provider: ollama
       requests_per_day: null
       requests_per_minute: null
-
     deepseek-coder:6.7b:
       provider: ollama
       requests_per_day: null
       requests_per_minute: null
-
     dolphin3:latest:
       provider: ollama
       requests_per_day: null
       requests_per_minute: null
-
-    gemma3:4b:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    llama3.1:8b:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    mistral:latest:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    phi3:3.8b:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    phi3:3.8b-instruct:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    qwen2.5-coder:latest:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    qwen3:8b:
-      provider: ollama
-      requests_per_day: null
-      requests_per_minute: null
-
-    # Gemini models (cloud-based with rate limits)
     gemini-2.0-flash:
       provider: gemini
       requests_per_day: 1500
       requests_per_minute: 15
       tokens_per_minute: 250000
-
     gemini-2.0-flash-lite:
       provider: gemini
       requests_per_day: 1500
       requests_per_minute: 30
       tokens_per_minute: 250000
-
     gemini-2.0-flash-preview-image-generation:
       provider: gemini
       requests_per_day: 1500
       requests_per_minute: 10
       tokens_per_minute: 250000
-
     gemini-2.5-flash:
       provider: gemini
       requests_per_day: 500
       requests_per_minute: 10
       tokens_per_minute: 250000
-
     gemini-2.5-flash-lite-preview-06-17:
       provider: gemini
       requests_per_day: 500
       requests_per_minute: 15
       tokens_per_minute: 250000
-
     gemini-2.5-flash-preview-04-17:
       provider: gemini
       requests_per_day: 500
       requests_per_minute: 10
       tokens_per_minute: 250000
-
-    # Gemma models (high rate limits)
     gemma-3-12b-it:
       provider: gemini
       requests_per_day: 14400
       requests_per_minute: 30
       tokens_per_minute: 250000
-
     gemma-3-1b-it:
       provider: gemini
       requests_per_day: 14400
       requests_per_minute: 30
       tokens_per_minute: 250000
-
     gemma-3-27b-it:
       provider: gemini
       requests_per_day: 14400
       requests_per_minute: 30
       tokens_per_minute: 250000
-
     gemma-3-4b-it:
       provider: gemini
       requests_per_day: 14400
       requests_per_minute: 30
       tokens_per_minute: 250000
-
-  # Ollama-specific settings
-  ollama_keep_alive: -1               # Keep models loaded indefinitely
-
-# ----------------------------------------------------------------------------
-# LLM PROCESSING CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for LLM agent behavior and retry logic
-llm_agent_max_retries: 5              # Maximum retries for LLM agents
-llm_max_retries: 5                    # Maximum retries for LLM requests
-llm_min_clips_needed: 1               # Minimum clips required for processing
-
-# LLM selection and processing settings
+    gemma3:4b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    llama3.1:8b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    mistral:latest:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    phi3:3.8b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    phi3:3.8b-instruct:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    qwen2.5-coder:latest:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+    qwen3:8b:
+      provider: ollama
+      requests_per_day: null
+      requests_per_minute: null
+  ollama_keep_alive: -1
+llm_agent_max_retries: 5
+llm_max_retries: 5
+llm_min_clips_needed: 1
 llm_selection:
-  json_processing_model: llm_model    # Model for JSON processing tasks
-  max_retries: 5                      # Maximum selection retries
-  min_clips: 1                        # Minimum clips for selection
-
-# ----------------------------------------------------------------------------
-# MUSIC INTEGRATION CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for music synchronization and mood detection
+  json_processing_model: llm_model
+  max_retries: 5
+  min_clips: 1
+log_dir: logs
 music_integration:
-  beat_synchronization_enabled: true   # Sync cuts to music beats
-  mood_detection_enabled: true         # Detect music mood
-  tempo_matching_enabled: true         # Match editing tempo to music
-
-# ----------------------------------------------------------------------------
-# DIRECTORY AND FILE CONFIGURATION
-# ----------------------------------------------------------------------------
-# File paths and directory settings
-log_dir: logs                         # Directory for log files
-output_dir: videos                    # Directory for output videos
-temp_dir: temp_processing             # Directory for temporary files
-state_file: .temp_clips.json          # State file for clip processing
-
-# ----------------------------------------------------------------------------
-# QWEN VISION MODEL CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for Qwen vision model processing
+  beat_synchronization_enabled: true
+  mood_detection_enabled: true
+  tempo_matching_enabled: true
+output_dir: videos
 qwen_vision:
-  batch_size: 20                      # Batch size for processing
-  frame_extraction_rate_fps: 1        # Frame extraction rate
-  ollama_qwen_vl_model_name: qwen2.5-coder:7b  # Qwen model name
-  resolution_settings: 720p           # Processing resolution
-  temporal_encoding_parameters: default # Temporal encoding settings
-
-# ----------------------------------------------------------------------------
-# SCENE DETECTION CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for automatic scene detection
+  batch_size: 20
+  frame_extraction_rate_fps: 0.1
+  ollama_qwen_vl_model_name: qwen2.5-coder:7b
+  resolution_settings: 720p
+  temporal_encoding_parameters: default
 scene_detection:
-  min_scene_duration: 1.0             # Minimum scene duration in seconds
-  sample_rate: 1                      # Frame sampling rate
-  threshold: 0.3                      # Scene change threshold
-
-# ----------------------------------------------------------------------------
-# SUBTITLE ANIMATION CONFIGURATION
-# ----------------------------------------------------------------------------
-# Advanced subtitle animation features
+  min_scene_duration: 1.0
+  sample_rate: 1
+  threshold: 0.3
+smoothing_factor: 0.1
+state_file: .temp_clips.json
 subtitle_animation:
-  emphasis_effects_enabled: true       # Enable text emphasis effects
-  speaker_color_coding_enabled: true   # Color-code different speakers
-  word_by_word_timing_enabled: true    # Enable word-by-word timing
-
-# ----------------------------------------------------------------------------
-# VIDEO ANALYSIS CONFIGURATION
-# ----------------------------------------------------------------------------
-# Settings for video content analysis
+  emphasis_effects_enabled: true
+  speaker_color_coding_enabled: true
+  word_by_word_timing_enabled: true
+subtitle_background_color: FFA500
+subtitle_border_radius: 10
+subtitle_font_color: FFFFFF
+subtitle_font_families:
+- Impact
+- Arial Black
+- Bebas Neue
+subtitle_font_size: 28
+subtitle_outline_color: '000000'
+subtitle_shadow_color: '000000'
+temp_dir: temp_processing
 video_analysis:
-  batch_size: 5                       # Batch size for video analysis
-  frame_sample_rate: 5                # Frame sampling rate for analysis
-
-# ----------------------------------------------------------------------------
-# MISCELLANEOUS SETTINGS
-# ----------------------------------------------------------------------------
-# Additional configuration parameters
-smoothing_factor: 0.1                 # Smoothing factor for transitions
-video_encoder: h264_nvenc              # Primary video encoder
-whisper_model: base                    # Whisper model for transcription
+  batch_size: 5
+  frame_sample_rate: 5
+video_encoder: h264_nvenc
+video_output:
+  target_aspect_ratios:
+  - '9:16'
+whisper_model: base

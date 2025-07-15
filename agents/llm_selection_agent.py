@@ -58,6 +58,15 @@ class LLMSelectionAgent(Agent):
         return grouped_segments
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_name = self.name
+        print(f"\nExecuting stage: {stage_name}")
+
+        # --- Pre-flight Check ---
+        # If clips already exist in the context, skip this stage.
+        if context.get('current_analysis', {}).get('clips') and context.get('pipeline_stages', {}).get(stage_name) == 'complete':
+            print(f"✅ Skipping {stage_name}: Clips already selected by LLM.")
+            return context
+
         transcription = context.get("archived_data", {}).get("full_transcription") # Get raw transcription
         user_prompt = context.get("user_prompt")
         storyboarding_data = context.get('storyboarding_data')
@@ -98,12 +107,16 @@ class LLMSelectionAgent(Agent):
             llm_context_data = {
                 "grouped_transcription": grouped_segments,
                 "storyboarding_data": storyboarding_data,
-                "user_instructions": user_prompt
+                "user_instructions": user_prompt,
+                "min_clip_duration_seconds": self.config.get('clip_duration_min'),
+                "max_clip_duration_seconds": self.config.get('clip_duration_max')
             }
 
-            base_llm_prompt = """
+            base_llm_prompt = f"""
             Analyze the following grouped transcription segments and storyboarding data.
-            Select the most engaging and viral-worthy clips, adhering to the specified duration.
+            Select the most engaging and viral-worthy clips.
+            Each selected clip MUST have a total duration between {self.config.get('clip_duration_min')} and {self.config.get('clip_duration_max')} seconds.
+            It is CRUCIAL that each clip's total duration falls strictly within this range.
             """
 
             formatted_llm_prompt = build_adaptive_prompt(
